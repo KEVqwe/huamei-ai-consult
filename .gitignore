@@ -1,0 +1,8 @@
+# 原始素材（700MB+，云端用 assets/ 精简子集，不进仓库）
+素材/
+*.zip
+
+# 本地临时
+node_modules/
+.DS_Store
+Thumbs.db

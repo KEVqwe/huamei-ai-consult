@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>小美 · 华美美学顾问</title>
+<style>
+  :root {
+    --brand: #c2185b;
+    --brand-light: #f8e1ea;
+    --brand-grad: linear-gradient(135deg, #d81b60, #ad1457);
+    --bg: #f6f3f4;
+    --bubble-user: linear-gradient(135deg, #d81b60, #c2185b);
+    --bubble-bot: #ffffff;
+    --text: #2b2b2b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #e9e4e6;
+    display: flex; justify-content: center;
+    color: var(--text);
+  }
+  #app {
+    width: 100%; max-width: 440px; height: 100dvh;
+    display: flex; flex-direction: column;
+    background: var(--bg);
+    box-shadow: 0 0 40px rgba(0,0,0,.12);
+  }
+  header {
+    background: var(--brand-grad); color: #fff;
+    padding: 14px 16px 12px;
+    display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 2px 8px rgba(173,20,87,.25);
+    z-index: 5;
+  }
+  .avatar {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: #fff; color: var(--brand);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  header .info { flex: 1; min-width: 0; }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: .5px; }
+  header .sub { font-size: 11px; opacity: .85; margin-top: 2px; display: flex; align-items: center; gap: 5px;}
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #7CFC98; display: inline-block; }
+  #chat {
+    flex: 1; overflow-y: auto; padding: 16px 12px 8px;
+    scroll-behavior: smooth;
+  }
+  .row { display: flex; margin-bottom: 12px; gap: 8px; }
+  .row.user { flex-direction: row-reverse; }
+  .row .b-avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+    background: #fff; border: 1px solid #eecdd9;
+  }
+  .row.user .b-avatar { background: var(--brand-light); border-color: #e8b3c8; }
+  .bubble {
+    max-width: 78%; padding: 10px 13px; border-radius: 14px;
+    font-size: 14px; line-height: 1.65; word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .row.bot .bubble { background: var(--bubble-bot); border-top-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .row.user .bubble { background: var(--bubble-user); color: #fff; border-top-right-radius: 4px; }
+  .bubble table {
+    border-collapse: collapse; margin: 6px 0; font-size: 12px; width: 100%;
+    display: block; overflow-x: auto; white-space: nowrap;
+    background: #fff;
+  }
+  .bubble th, .bubble td { border: 1px solid #eeced9; padding: 4px 8px; text-align: left; }
+  .bubble th { background: var(--brand-light); color: #8e1147; font-weight: 600; }
+  .bubble strong { color: #ad1457; }
+  .row.user .bubble strong { color: #fff; }
+  .bubble h4 { margin: 6px 0 2px; font-size: 14px; color: #ad1457; }
+  .bubble img {
+    max-width: 100%; border-radius: 10px; margin: 2px 0; cursor: pointer;
+    display: block; min-height: 60px; background: #faf2f6;
+  }
+  .bubble.img-only { padding: 4px; background: transparent; box-shadow: none; }
+  .typing { display: inline-flex; gap: 4px; padding: 4px 2px; }
+  .typing i { width: 7px; height: 7px; background: #d3a4b8; border-radius: 50%; animation: blink 1.2s infinite; }
+  .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%,60%,100% { opacity: .3; transform: translateY(0);} 30% { opacity: 1; transform: translateY(-3px);} }
+  #chips {
+    display: flex; gap: 8px; overflow-x: auto; padding: 8px 12px;
+    background: var(--bg); scrollbar-width: none;
+  }
+  #chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex-shrink: 0; padding: 7px 14px; border-radius: 999px;
+    background: #fff; border: 1px solid #e8b3c8; color: #ad1457;
+    font-size: 13px; cursor: pointer; user-select: none;
+    transition: all .15s;
+  }
+  .chip:active { background: var(--brand-light); transform: scale(.96); }
+  #inputbar {
+    display: flex; gap: 8px; padding: 10px 12px 14px;
+    background: #fff; border-top: 1px solid #f0dbe4;
+  }
+  #inputbar input {
+    flex: 1; border: 1.5px solid #e8cdd8; border-radius: 999px;
+    padding: 10px 16px; font-size: 14px; outline: none;
+    background: #fdf9fb;
+  }
+  #inputbar input:focus { border-color: var(--brand); }
+  #send {
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: var(--brand-grad); color: #fff; font-size: 18px;
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #send:disabled { opacity: .5; }
+  .disclaimer {
+    text-align: center; font-size: 10px; color: #b9a3ac; padding: 0 16px 8px; background: #fff;
+  }
+  /* 图片放大预览 */
+  #viewer {
+    position: fixed; inset: 0; background: rgba(0,0,0,.85);
+    display: none; align-items: center; justify-content: center; z-index: 99;
+  }
+  #viewer img { max-width: 96vw; max-height: 92vh; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="avatar">💐</div>
+    <div class="info">
+      <h1>小美 · 华美美学顾问</h1>
+      <div class="sub"><span class="dot"></span>在线 · 通常几秒内回复</div>
+    </div>
+  </header>
+
+  <div id="chat"></div>
+
+  <div id="chips">
+    <span class="chip">我想祛斑</span>
+    <span class="chip">水光针多少钱</span>
+    <span class="chip">热玛吉价格</span>
+    <span class="chip">瘦脸针</span>
+    <span class="chip">双眼皮</span>
+    <span class="chip">脱毛</span>
+    <span class="chip">本月活动</span>
+    <span class="chip">会员权益</span>
+    <span class="chip">预约面诊</span>
+  </div>
+
+  <div id="inputbar">
+    <input id="input" type="text" placeholder="想了解什么都可以问我哦…" autocomplete="off">
+    <button id="send">➤</button>
+  </div>
+  <div class="disclaimer">内容仅供参考，具体方案与价格以到院面诊为准 · 医疗美容有风险</div>
+</div>
+<div id="viewer" onclick="this.style.display='none'"><img id="viewerImg"></div>
+
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const history = [];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// 极简 Markdown 渲染（粗体 / 表格 / 标题 / 图片）
+function md(text) {
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const inline = s => esc(s)
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight">')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const lines = text.split('\n');
+  let html = '', tbl = [];
+  const flushTbl = () => {
+    if (!tbl.length) return;
+    const rows = tbl.filter(r => !/^\s*\|[\s:-]+\|/.test(r));
+    let t = '<table>';
+    rows.forEach((r, i) => {
+      const cells = r.replace(/^\||\|$/g,'').split('|').map(c => c.trim());
+      t += '<tr>' + cells.map(c => `<${i===0?'th':'td'}>${inline(c)}</${i===0?'th':'td'}>`).join('') + '</tr>';
+    });
+    html += t + '</table>'; tbl = [];
+  };
+  for (const line of lines) {
+    if (/^\s*\|.*\|\s*$/.test(line)) { tbl.push(line); continue; }
+    flushTbl();
+    if (/^#{1,4}\s/.test(line)) html += `<h4>${inline(line.replace(/^#+\s*/,''))}</h4>`;
+    else html += inline(line) + '\n';
+  }
+  flushTbl();
+  return html.replace(/\n$/,'');
+}
+function viewImg(src) {
+  document.getElementById('viewerImg').src = src;
+  document.getElementById('viewer').style.display = 'flex';
+}
+
+function addMsg(role, content, isTyping) {
+  const row = document.createElement('div');
+  row.className = 'row ' + (role === 'user' ? 'user' : 'bot');
+  const av = document.createElement('div');
+  av.className = 'b-avatar';
+  av.textContent = role === 'user' ? '🙂' : '💐';
+  const b = document.createElement('div');
+  b.className = 'bubble';
+  if (isTyping) b.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+  else b.innerHTML = md(content);
+  if (!isTyping && /^!\[.*\]\(.*\)$/.test(content.trim())) b.classList.add('img-only');
+  row.appendChild(av); row.appendChild(b);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+  return { row, b };
+}
+
+// 像真人一样：逐条显示，每条前先"正在输入"
+async function showSegments(segments) {
+  for (const seg of segments) {
+    const { b } = addMsg('bot', '', true);
+    const isImg = /^!\[.*\]\(.*\)$/.test(seg.trim());
+    await sleep(isImg ? 500 : Math.min(600 + seg.length * 18, 2600));
+    b.innerHTML = md(seg);
+    if (isImg) b.classList.add('img-only');
+    chat.scrollTop = chat.scrollHeight;
+  }
+}
+
+async function send(text) {
+  text = (text || input.value).trim();
+  if (!text) return;
+  input.value = '';
+  sendBtn.disabled = true;
+  addMsg('user', text);
+  history.push({ role: 'user', content: text });
+  const { row, b } = addMsg('bot', '', true);
+  try {
+    let res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-access-code': localStorage.getItem('hm_code') || '' },
+      body: JSON.stringify({ messages: history }),
+    });
+    if (res.status === 401) {
+      const code = prompt('请输入访问口令');
+      if (code) {
+        localStorage.setItem('hm_code', code);
+        res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-access-code': code },
+          body: JSON.stringify({ messages: history }),
+        });
+      }
+    }
+    const data = await res.json();
+    if (data.error === 'access_code_required') throw new Error('访问口令不正确');
+    if (data.error) throw new Error(data.error);
+    row.remove();
+    const segs = data.segments && data.segments.length ? data.segments : [data.reply];
+    await showSegments(segs);
+    history.push({ role: 'assistant', content: data.reply });
+  } catch (e) {
+    b.innerHTML = '哎呀网络有点卡，您再发一次试试～';
+    console.error(e);
+  }
+  sendBtn.disabled = false;
+  chat.scrollTop = chat.scrollHeight;
+  input.focus();
+}
+
+sendBtn.onclick = () => send();
+input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+document.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.textContent));
+
+// 欢迎语（真人顾问口吻，分两条）
+(async () => {
+  await showSegments([
+    '亲，在的哦～我是华美的美学顾问小美😊',
+    '您最近是想改善皮肤，还是想了解什么项目呀？祛斑、抗衰、瘦脸、双眼皮这些都可以问我，也可以点下面的标签快速了解👇',
+  ]);
+  history.push({ role: 'assistant', content: '亲，在的哦～我是华美的美学顾问小美😊 您最近是想改善皮肤，还是想了解什么项目呀？' });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "huamei-ai-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["app/server.js"],
+      "port": 3080,
+      "autoPort": true
+    }
+  ]
+}

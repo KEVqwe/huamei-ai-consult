@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git init; git add -A; git status --short | Select-Object -First 5; \\(git status --short | Measure-Object -Line\\).Lines)"
+    ]
+  }
+}
