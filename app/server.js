@@ -493,6 +493,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/version') {
+    const v = JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'version.json'), 'utf8'));
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify(v));
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/status') {
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({

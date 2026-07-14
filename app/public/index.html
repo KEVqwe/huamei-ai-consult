@@ -138,7 +138,7 @@
   <header>
     <div class="avatar">💐</div>
     <div class="info">
-      <h1>小美 · 华美美学顾问</h1>
+      <h1>小美 · 华美美学顾问 <span id="version" style="font-size:10px;opacity:.6;font-weight:400;margin-left:4px"></span></h1>
       <div class="sub"><span class="dot"></span><span id="subStatus">在线</span></div>
     </div>
   </header>
@@ -169,6 +169,15 @@ const input = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 const history = [];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// 加载版本号
+(async () => {
+  try {
+    const r = await fetch('/api/version');
+    const v = await r.json();
+    document.getElementById('version').textContent = 'v' + v.version;
+  } catch (e) { /* ignore */ }
+})();
 
 // 招呼语随机池
 const GREETINGS = [
