@@ -129,7 +129,7 @@
     <div class="avatar">💐</div>
     <div class="info">
       <h1>小美 · 华美美学顾问</h1>
-      <div class="sub"><span class="dot"></span>在线 · 通常几秒内回复</div>
+      <div class="sub"><span class="dot"></span><span id="subStatus">在线 · 通常几秒内回复</span></div>
     </div>
   </header>
 
@@ -211,16 +211,28 @@ function addMsg(role, content, isTyping) {
   return { row, b };
 }
 
-// 像真人一样：逐条显示，每条前先"正在输入"
+// 像真人一样：逐条显示，打字时长≈真人手速（约14字/秒），发图/表格像发文件一样快
+const subStatus = document.getElementById('subStatus');
+function typingDelay(seg) {
+  const isImg = /^!\[.*\]\(.*\)$/.test(seg.trim());
+  if (isImg) return 1200 + Math.random() * 600;             // 挑图、发送
+  if (/^\s*\|.*\|/m.test(seg)) return 1500 + Math.random() * 700; // 发价目表≈转发文件
+  const textLen = seg.replace(/[\s*#|]/g, '').length;
+  const base = 800 + textLen * 70;                           // ≈每秒14个字
+  return Math.min(base, 6000) * (0.85 + Math.random() * 0.3); // ±15%波动
+}
 async function showSegments(segments) {
+  subStatus.textContent = '正在输入…';
   for (const seg of segments) {
     const { b } = addMsg('bot', '', true);
     const isImg = /^!\[.*\]\(.*\)$/.test(seg.trim());
-    await sleep(isImg ? 500 : Math.min(600 + seg.length * 18, 2600));
+    await sleep(typingDelay(seg));
     b.innerHTML = md(seg);
     if (isImg) b.classList.add('img-only');
     chat.scrollTop = chat.scrollHeight;
+    await sleep(250 + Math.random() * 350); // 条与条之间的自然间隔
   }
+  subStatus.textContent = '在线 · 通常几秒内回复';
 }
 
 async function send(text) {

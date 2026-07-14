@@ -12,11 +12,16 @@ const path = require('path');
 
 const ROOT = __dirname;
 const KNOWLEDGE_DIR = path.join(ROOT, '..', 'knowledge');
-// 本地开发用完整素材目录；云端部署（git仓库）只带 assets/ 精简子集
-const ASSETS_DIR = fs.existsSync(path.join(ROOT, '..', '素材'))
-  ? path.join(ROOT, '..', '素材')
-  : path.join(ROOT, '..', 'assets');
+// 图片解析顺序：assets/（网页压缩版，优先）→ 素材/（原图，本地兜底）
+const ASSET_BASES = [path.join(ROOT, '..', 'assets'), path.join(ROOT, '..', '素材')];
 const PUBLIC_DIR = path.join(ROOT, 'public');
+function resolveAsset(rel) {
+  for (const base of ASSET_BASES) {
+    const fp = path.join(base, path.normalize(rel));
+    if (fp.startsWith(base) && fs.existsSync(fp) && fs.statSync(fp).isFile()) return fp;
+  }
+  return null;
+}
 const BASE_PORT = Number(process.env.PORT || 3080);
 
 // ---------- 模型 Provider 配置（优先级：DeepSeek > Claude > 本地） ----------
@@ -74,6 +79,18 @@ const IMAGE_CATALOG = [
   { file: '6月份政策/政策（全院）/全院-01.jpg', tags: ['活动', '储值', '充值', '高定大师季', '新客'], desc: '本月高定大师季全院政策' },
   { file: '荟员升级权益/1.png', tags: ['会员', '荟员', 'vip'], desc: '荟员权益 V1雏菊粉卡' },
   { file: '荟员升级权益/3.png', tags: ['金卡'], desc: '荟员权益 V3玫瑰金卡' },
+  // 医生介绍（问到医生或高关联项目时发）
+  { file: '医生介绍/整形外科/佀同帅/【佀同帅个人介绍】长图修改.jpg', tags: ['佀同帅', '显微眼', '眼整形医生'], desc: '佀同帅院长（眼部整形）' },
+  { file: '医生介绍/整形外科/陈小剑/陈小剑个人简介长图.jpg', tags: ['陈小剑', '5M精雕', '重睑修复'], desc: '陈小剑主任（眼部整形）' },
+  { file: '医生介绍/整形外科/叶丽萍/叶丽萍个人总介绍.jpg', tags: ['叶丽萍', '海鸥线'], desc: '叶丽萍医生（鼻整形/面部提升）' },
+  { file: '医生介绍/整形外科/李健/李健-个人总介绍.jpg', tags: ['李健', '脊状肋'], desc: '李健医生（鼻整形/隆胸/面部年轻化）' },
+  { file: '医生介绍/整形外科/张朋/【张朋个人介绍】总介绍修改.jpg', tags: ['张朋', '体雕'], desc: '张朋院长（鼻整形/吸脂塑形）' },
+  { file: '医生介绍/整形外科/谢卫国/谢卫国个人总介绍.jpg', tags: ['谢卫国', '动感隆胸'], desc: '谢卫国医生（隆胸/自体脂肪）' },
+  { file: '医生介绍/整形外科/胡小清/胡小清个人总介绍.jpg', tags: ['胡小清', 'park法', '育唇'], desc: '胡小清医生（眼整形/唇部/私密）' },
+  { file: '医生介绍/整形外科/李志海/李志海个人介绍.jpg', tags: ['李志海', '下颌角', '颧骨', '轮廓', '磨骨', '改脸型'], desc: '李志海院长（颌面轮廓）' },
+  { file: '医生介绍/微整形医生团.jpg', tags: ['微整医生', '注射医生'], desc: '微整形医生团队' },
+  { file: '医生介绍/毛发移植科/刘学新 主任/刘学新个人介绍.jpg', tags: ['刘学新', '植发', '毛发移植', '发际线', '种植'], desc: '刘学新主任（毛发移植）' },
+  { file: '医生介绍/特邀专家/韩国医生专家团.jpg', tags: ['韩国专家', '特邀专家'], desc: '韩国医生专家团' },
 ];
 function pickImages(text, max = 2) {
   const t = (text || '').toLowerCase();
@@ -99,10 +116,10 @@ const INTENTS = [
   { kw: ['玻尿酸', '填充', '丰唇', '泪沟', '苹果肌填', '下巴'], q: ['玻尿酸', '胶原蛋白'], intro: '填充类玻尿酸和胶原蛋白的品牌档位都挺全的' },
   { kw: ['线雕', '埋线', 'ppdo', '悦升'], q: ['埋线', '悦升', 'PPDO', '童颜线'], intro: '线雕提升有PPDO、悦升线、童颜线、强生鱼骨线好几种线材' },
   { kw: ['脱毛', '腋毛', '唇毛', '比基尼'], q: ['脱毛'], intro: '冰点脱毛按部位算的，现在单次直接5折' },
-  { kw: ['双眼皮', '重睑', '眼袋', '开眼角', '眼综合', '提肌'], q: ['眼部', '重睑', '眼袋'], intro: '眼部是咱家外科的招牌哦，从埋线7800到显微精细综合都有' },
-  { kw: ['隆鼻', '鼻综合', '鼻头', '鼻翼', '鼻基底'], q: ['鼻部', '隆鼻'], intro: '鼻部从假体隆鼻到自体肋骨鼻综合都能做' },
-  { kw: ['隆胸', '丰胸', '假体', '乳房'], q: ['胸部', '曼托', '傲诺拉'], intro: '胸部有曼托、傲诺拉这些假体，也可以自体脂肪丰胸' },
-  { kw: ['吸脂', '抽脂', '减脂', '瘦身', '冷冻减脂', '酷塑'], q: ['吸脂', '冷冻减脂', '形体'], intro: '塑形分两条路线：手术吸脂，或者无创的酷塑冷冻减脂/VelaShape' },
+  { kw: ['双眼皮', '重睑', '眼袋', '开眼角', '眼综合', '提肌'], q: ['眼部', '重睑', '眼袋'], intro: '眼部是咱家外科的招牌哦～佀同帅院长和陈小剑主任都是专攻眼整形20年的专家，从埋线7800到显微精细综合都有' },
+  { kw: ['隆鼻', '鼻综合', '鼻头', '鼻翼', '鼻基底'], q: ['鼻部', '隆鼻'], intro: '鼻部从假体隆鼻到自体肋骨鼻综合都能做，叶丽萍、李健几位医生的鼻整形口碑都很好' },
+  { kw: ['隆胸', '丰胸', '假体', '乳房'], q: ['胸部', '曼托', '傲诺拉'], intro: '胸部有曼托、傲诺拉这些假体，也可以自体脂肪丰胸，谢卫国医生专攻隆胸30多年了' },
+  { kw: ['吸脂', '抽脂', '减脂', '瘦身', '冷冻减脂', '酷塑'], q: ['吸脂', '冷冻减脂', '形体'], intro: '塑形分两条路线：手术吸脂或者无创的酷塑冷冻减脂，手术这块张朋院长的分层紧肤体雕很有名' },
   { kw: ['脂肪填充', '自体脂肪', '丰臀'], q: ['自体脂肪', '科尔曼'], intro: '自体脂肪填充用的是科尔曼ARC金标准，第二次7折、第三次5折' },
   { kw: ['私密', '紧致术', '菲蜜丽', '蕊丽', '产后修复'], q: ['私密', '菲蜜丽', '阴道'], intro: '私密中心（Laqueen）从光电紧致到注射、手术都有，都是女医生接诊' },
   { kw: ['纹眉', '雾眉', '洗眉', '漂唇', '纹发', '半永久'], q: ['纹洗'], intro: '半永久纹绣（眉/唇/眼线/纹发）都在皮肤科做' },
@@ -115,6 +132,8 @@ const INTENTS = [
   { kw: ['美白', '暗沉', '暗黄', '提亮'], q: ['美白', '焕肤', '聚光尊', 'NIR'], intro: '美白提亮可以从光子、焕肤和微针美塑套组入手' },
   { kw: ['毛孔', '黑头'], q: ['毛孔', '微针', '点阵'], intro: '毛孔粗大一般用微针美塑、点阵激光和光子联合改善' },
   { kw: ['敏感', '泛红', '红血丝', '修复'], q: ['舒敏', '修护', '脉冲光'], intro: '敏感肌咱们有舒敏之星、瑞可丽蓝色修复套这些温和方案' },
+  { kw: ['医生', '专家', '院长', '主任', '大夫', '医师'], q: ['医生团队', '佀同帅', '陈小剑'], intro: '咱家医生团队蛮强的：眼部有佀同帅、陈小剑两位专攻20年的专家，鼻子和面部提升有叶丽萍、李健（30年资历），轮廓找李志海院长，隆胸塑形有谢卫国、张朋' },
+  { kw: ['植发', '发际线', '种头发', '毛发'], q: ['毛发移植', '刘学新'], intro: '毛发移植有刘学新主任带的专业医护团队，发际线、眉毛、鬓角都能种' },
 ];
 
 function searchSections(queries, limit = 2) {
@@ -220,8 +239,14 @@ const MIME = {
   '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.gif': 'image/gif',
 };
 
-function serveFile(res, fp) {
-  res.writeHead(200, { 'content-type': MIME[path.extname(fp).toLowerCase()] || 'application/octet-stream' });
+function serveFile(req, res, fp, cacheSeconds = 0) {
+  const headers = {
+    'content-type': MIME[path.extname(fp).toLowerCase()] || 'application/octet-stream',
+    'content-length': fs.statSync(fp).size,
+  };
+  if (cacheSeconds > 0) headers['cache-control'] = `public, max-age=${cacheSeconds}`;
+  res.writeHead(200, headers);
+  if (req.method === 'HEAD') return res.end();
   fs.createReadStream(fp).pipe(res);
 }
 
@@ -247,8 +272,8 @@ const server = http.createServer(async (req, res) => {
         } else {
           segments = demoReply(lastUser);
         }
-        // 按话题自动配图（像真人顾问随手发图）
-        for (const img of pickImages(lastUser, 2)) {
+        // 按话题自动配图（像真人顾问随手发图）：匹配用户提问+第一条回复（提到医生名/项目名会带图；不匹配结尾的活动话术，避免每次都发政策图）
+        for (const img of pickImages(lastUser + ' ' + (segments[0] || ''), 2)) {
           segments.push(`![${img.desc}](${img.url})`);
         }
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
@@ -273,18 +298,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 素材图片
-  if (req.method === 'GET' && url.pathname.startsWith('/assets/')) {
+  // 素材图片（assets压缩版优先，素材原图兜底；缓存7天）
+  if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname.startsWith('/assets/')) {
     const rel = decodeURIComponent(url.pathname.slice('/assets/'.length));
-    const fp = path.join(ASSETS_DIR, path.normalize(rel));
-    if (fp.startsWith(ASSETS_DIR) && fs.existsSync(fp) && fs.statSync(fp).isFile()) return serveFile(res, fp);
+    const fp = resolveAsset(rel);
+    if (fp) return serveFile(req, res, fp, 604800);
     res.writeHead(404); return res.end('Not Found');
   }
 
   // 静态文件
   let file = url.pathname === '/' ? '/index.html' : url.pathname;
   const fp = path.join(PUBLIC_DIR, path.normalize(file).replace(/^([.][.][\\/])+/, ''));
-  if (fp.startsWith(PUBLIC_DIR) && fs.existsSync(fp) && fs.statSync(fp).isFile()) return serveFile(res, fp);
+  if (fp.startsWith(PUBLIC_DIR) && fs.existsSync(fp) && fs.statSync(fp).isFile()) return serveFile(req, res, fp);
   res.writeHead(404); res.end('Not Found');
 });
 

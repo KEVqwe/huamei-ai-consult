@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(git init; git add -A; git status --short | Select-Object -First 5; \\(git status --short | Measure-Object -Line\\).Lines)"
+      "PowerShell(git init; git add -A; git status --short | Select-Object -First 5; \\(git status --short | Measure-Object -Line\\).Lines)",
+      "PowerShell(git add deploy/Zeabur����ָ��.md)",
+      "PowerShell(powershell -ExecutionPolicy Bypass -File deploy\\\\compress-assets.ps1)",
+      "Bash(PORT=3097 node app/server.js)",
+      "Bash(curl -sI \"localhost:3097/assets/%E8%8D%9F%E5%91%98%E5%8D%87%E7%BA%A7%E6%9D%83%E7%9B%8A/1.png\")",
+      "Bash(kill %1)",
+      "Bash(node -e ' *)",
+      "Bash(PORT=3096 node app/server.js)",
+      "Bash(curl -sI \"http://localhost:3096/assets/%E8%8D%9F%E5%91%98%E5%8D%87%E7%BA%A7%E6%9D%83%E7%9B%8A/1.png\")",
+      "Bash(curl -s -o /dev/null -w \"second try: %{http_code}\\\\n\" \"http://localhost:3096/assets/%E8%8D%9F%E5%91%98%E5%8D%87%E7%BA%A7%E6%9D%83%E7%9B%8A/1.png\")",
+      "PowerShell(Get-ChildItem 素材 -Recurse -File | Where-Object { $_.LastWriteTime -gt \\(Get-Date\\).AddDays\\(-1\\) } | Sort-Object LastWriteTime -Descending | Select-Object LastWriteTime, @{n='Path';e={$_.FullName.Replace\\(\"$PWD\\\\素材\\\\\",''\\)}}, @{n='KB';e={[math]::Round\\($_.Length/1KB\\)}} | Format-Table -AutoSize | Out-String -Width 200)",
+      "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; foreach \\($z in @\\('素材\\\\医生介绍.zip','素材\\\\项目介绍.zip'\\)\\) { $zip = [System.IO.Compression.ZipFile]::OpenRead\\(\"$PWD\\\\$z\"\\); Write-Output \"==== $z \\(entries: $\\($zip.Entries.Count\\)\\) ====\"; $zip.Entries | Select-Object -First 50 | ForEach-Object { Write-Output \\(\"  \" + $_.FullName + \"  [\" + [math]::Round\\($_.Length/1KB\\) + \" KB]\"\\) }; if \\($zip.Entries.Count -gt 50\\) { Write-Output \\(\"  ... and \" + \\($zip.Entries.Count - 50\\) + \" more\"\\) }; $zip.Dispose\\(\\) })",
+      "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; foreach \\($z in @\\('医生介绍','项目介绍'\\)\\) { if \\(-not \\(Test-Path \"素材\\\\$z\"\\)\\) { [System.IO.Compression.ZipFile]::ExtractToDirectory\\(\"$PWD\\\\素材\\\\$z.zip\", \"$PWD\\\\素材\"\\) } }; Get-ChildItem 素材 -Directory | Select-Object Name)",
+      "PowerShell(Expand-Archive -Path 素材\\\\医生介绍.zip -DestinationPath 素材 -Force; Expand-Archive -Path 素材\\\\项目介绍.zip -DestinationPath 素材 -Force; \\(Get-ChildItem 素材\\\\医生介绍 -Recurse -File\\).Count; \\(Get-ChildItem 素材\\\\项目介绍 -Recurse -File\\).Count)",
+      "PowerShell(Get-ChildItem 素材\\\\医生介绍 -Recurse -File | ForEach-Object { $_.FullName.Replace\\(\"$PWD\\\\素材\\\\医生介绍\\\\\",''\\) } | Sort-Object)",
+      "PowerShell(Get-ChildItem 素材\\\\项目介绍 -Recurse -Directory | ForEach-Object { $_.FullName.Replace\\(\"$PWD\\\\素材\\\\项目介绍\\\\\",''\\) } | Sort-Object)",
+      "PowerShell(git add -A)"
     ]
   }
 }
