@@ -212,7 +212,7 @@ function smartSplit(raw) {
   if (raw.includes('|||')) {
     return raw.split('|||').map(s => s.trim()).filter(Boolean);
   }
-  // 兜底：按换行拆分
+  // 兜底：按换行拆分，再按 | 拆分（兼容模型误用单竖线）
   const lines = raw.split('\n');
   const segs = [];
   let buf = [];
@@ -224,7 +224,12 @@ function smartSplit(raw) {
       buf.push(t);
     } else {
       if (buf.length) { segs.push(buf.join('\n')); buf = []; }
-      segs.push(t);
+      // 按单竖线拆分为多条（非表格行的 | 视为分隔符）
+      if (t.includes('|')) {
+        segs.push(...t.split('|').map(s => s.trim()).filter(Boolean));
+      } else {
+        segs.push(t);
+      }
     }
   }
   if (buf.length) segs.push(buf.join('\n'));
