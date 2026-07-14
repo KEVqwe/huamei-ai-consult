@@ -176,16 +176,16 @@ const GREETINGS = [
 // 根据用户问题复杂度估算真人思考时间（毫秒）
 function thinkDelay(text) {
   const len = (text || '').length;
-  // 简单问候：1~2秒
+  // 简单问候：2~4秒（0.5x）
   if (/^(你好|您好|hi|hello|在吗|嗨|嗯|哦|好的|谢谢)/.test(text.trim()) && len <= 5) {
-    return 1000 + Math.random() * 1000;
+    return 2000 + Math.random() * 2000;
   }
-  // 短问题：1.5~3.5秒
-  if (len <= 12) return 1500 + Math.random() * 2000;
-  // 中等长度：2.5~5秒
-  if (len <= 30) return 2500 + Math.random() * 2500;
-  // 长问题/复杂需求：3.5~7秒
-  return 3500 + Math.random() * 3500;
+  // 短问题：3~7秒（0.5x）
+  if (len <= 12) return 3000 + Math.random() * 4000;
+  // 中等长度：5~10秒（0.5x）
+  if (len <= 30) return 5000 + Math.random() * 5000;
+  // 长问题/复杂需求：7~14秒（0.5x）
+  return 7000 + Math.random() * 7000;
 }
 
 // 极简 Markdown 渲染（粗体 / 表格 / 标题 / 图片）
@@ -252,15 +252,15 @@ function addSysMsg(text) {
   return row;
 }
 
-// 像真人一样：逐条显示，打字时长≈真人手速（约14字/秒），发图/表格像发文件一样快
+// 像真人一样：逐条显示，打字时长≈真人手速（约7字/秒，0.5倍速），发图/表格像发文件一样快
 const subStatus = document.getElementById('subStatus');
 function typingDelay(seg) {
   const isImg = /^!\[.*\]\(.*\)$/.test(seg.trim());
-  if (isImg) return 1200 + Math.random() * 600;             // 挑图、发送
-  if (/^\s*\|.*\|/m.test(seg)) return 1500 + Math.random() * 700; // 发价目表≈转发文件
+  if (isImg) return 2400 + Math.random() * 1200;             // 挑图、发送
+  if (/^\s*\|.*\|/m.test(seg)) return 3000 + Math.random() * 1400; // 发价目表≈转发文件
   const textLen = seg.replace(/[\s*#|]/g, '').length;
-  const base = 800 + textLen * 70;                           // ≈每秒14个字
-  return Math.min(base, 6000) * (0.85 + Math.random() * 0.3); // ±15%波动
+  const base = 1600 + textLen * 140;                          // ≈每秒7个字（0.5x）
+  return Math.min(base, 12000) * (0.85 + Math.random() * 0.3); // ±15%波动
 }
 async function showSegments(segments) {
   subStatus.textContent = '正在输入…';
@@ -273,10 +273,10 @@ async function showSegments(segments) {
     if (isImg && !imageHintShown && i > 0) {
       imageHintShown = true;
       const { b: hintB } = addMsg('bot', '', true);
-      await sleep(1500 + Math.random() * 1500);
+      await sleep(3000 + Math.random() * 3000);
       hintB.innerHTML = '稍等下，我找下图片哈';
       chat.scrollTop = chat.scrollHeight;
-      await sleep(500 + Math.random() * 400);
+      await sleep(1000 + Math.random() * 800);
     }
 
     const { b } = addMsg('bot', '', true);
@@ -284,7 +284,7 @@ async function showSegments(segments) {
     b.innerHTML = md(seg);
     if (isImg) b.classList.add('img-only');
     chat.scrollTop = chat.scrollHeight;
-    await sleep(250 + Math.random() * 350); // 条与条之间的自然间隔
+    await sleep(500 + Math.random() * 700); // 条与条之间的自然间隔（0.5x）
   }
   subStatus.textContent = '在线';
 }
@@ -348,9 +348,9 @@ document.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.textCon
 
 // 欢迎语（淘宝客服入场效果：页面加载→短暂停顿→"接入中"→接入延迟→顾问开场→隐藏接入提示）
 (async () => {
-  await sleep(400 + Math.random() * 500);
+  await sleep(800 + Math.random() * 1000);
   const sysEl = addSysMsg('正在为您接入人工客服...');
-  await sleep(1800 + Math.random() * 1500);
+  await sleep(3600 + Math.random() * 3000);
   if (sysEl) sysEl.remove();  // 接入完成，移除系统提示
   const greeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
   await showSegments([greeting]);
