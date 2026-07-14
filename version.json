@@ -1,6 +1,6 @@
 {
-  "version": "1.7",
-  "build": 26,
+  "version": "1.8",
+  "build": 27,
   "date": "2026-07-14",
-  "note": "修复渐进式JPEG编码损坏导致图片显示问号，改用baseline编码"
+  "note": "LQIP缩略图方案：16KB瞬间加载→后台替换29MB高清图"
 }

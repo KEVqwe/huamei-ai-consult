@@ -212,7 +212,7 @@ function md(text) {
   text = text.replace(/\n{2,}/g, '\n');
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const inline = s => esc(s)
-    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false">')
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false" data-full="$2" onerror="this.src=this.dataset.full">')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   const lines = text.split('\n');
   let html = '', tbl = [];
@@ -235,6 +235,26 @@ function md(text) {
   flushTbl();
   return html.replace(/\n$/,'');
 }
+
+// LQIP: 图片先用缩略图瞬间显示，后台加载高清图替换
+function upgradeImages(root) {
+  root.querySelectorAll('img[data-full]').forEach(img => {
+    const full = img.dataset.full;
+    if (!full || img.dataset.upgraded) return;
+    img.dataset.upgraded = '1';
+    const thumb = full.replace('/assets/', '/thumb/');
+    img.src = thumb;
+    img.style.filter = 'blur(10px)';
+    img.style.transition = 'filter 0.3s';
+    const hi = new Image();
+    hi.onload = () => {
+      img.src = full;
+      img.style.filter = 'blur(0)';
+    };
+    hi.src = full;
+  });
+}
+
 function viewImg(src) {
   document.getElementById('viewerImg').src = src;
   document.getElementById('viewer').style.display = 'block';
@@ -305,6 +325,7 @@ async function showSegments(segments) {
     await sleep(typingDelay(seg));
     b.innerHTML = md(seg);
     if (isImg) b.classList.add('img-only');
+    upgradeImages(b);
     chat.scrollTop = chat.scrollHeight;
     await sleep(500 + Math.random() * 700); // 条与条之间的自然间隔（0.5x）
   }
