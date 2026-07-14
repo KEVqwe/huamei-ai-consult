@@ -446,7 +446,10 @@ function serveFile(req, res, fp, cacheSeconds = 0) {
     'content-type': MIME[path.extname(fp).toLowerCase()] || 'application/octet-stream',
     'content-length': fs.statSync(fp).size,
   };
-  if (cacheSeconds > 0) headers['cache-control'] = `public, max-age=${cacheSeconds}`;
+  if (cacheSeconds > 0) {
+    headers['cache-control'] = `public, max-age=${cacheSeconds}, immutable`;
+    headers['etag'] = `"${fs.statSync(fp).mtimeMs.toString(36)}"`;
+  }
   res.writeHead(200, headers);
   if (req.method === 'HEAD') return res.end();
   fs.createReadStream(fp).pipe(res);
@@ -515,16 +518,16 @@ const server = http.createServer(async (req, res) => {
     const rel = decodeURIComponent(url.pathname.slice('/thumb/'.length));
     const fp = path.join(ROOT, '..', 'assets', 'thumb', path.normalize(rel));
     if (fp.startsWith(path.join(ROOT, '..', 'assets', 'thumb')) && fs.existsSync(fp) && fs.statSync(fp).isFile()) {
-      return serveFile(req, res, fp, 86400);
+      return serveFile(req, res, fp, 2592000);  // 30天 CDN缓存
     }
     res.writeHead(404); return res.end('Not Found');
   }
 
-  // 素材图片（assets压缩版优先，素材原图兜底；缓存7天）
+  // 素材图片（assets压缩版优先，素材原图兜底；缓存30天）
   if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname.startsWith('/assets/')) {
     const rel = decodeURIComponent(url.pathname.slice('/assets/'.length));
     const fp = resolveAsset(rel);
-    if (fp) return serveFile(req, res, fp, 604800);
+    if (fp) return serveFile(req, res, fp, 2592000);  // 30天 CDN缓存
     res.writeHead(404); return res.end('Not Found');
   }
 
