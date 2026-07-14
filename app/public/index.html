@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>小美 · 华美美学顾问</title>
 <style>
   :root {
@@ -119,19 +119,17 @@
     display: flex; align-items: center; justify-content: center;
   }
   #send:disabled { opacity: .5; }
-  /* 图片放大预览（移动端支持双指缩放） */
+  /* 图片放大预览 */
   #viewer {
-    position: fixed; inset: 0; background: rgba(0,0,0,.92);
-    display: none; z-index: 99;
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
+    position: fixed; inset: 0; background: rgba(0,0,0,.95);
+    display: none; z-index: 999;
+    overflow: scroll; -webkit-overflow-scrolling: touch;
   }
   #viewer img {
-    display: block; margin: auto;
-    max-width: none; width: 100%; height: auto;
-    border-radius: 8px;
-    cursor: zoom-out;
-    touch-action: pinch-zoom;
+    display: block;
+    max-width: 100%; width: auto; height: auto;
+    cursor: pointer;
+    touch-action: pinch-zoom pan-x pan-y;
   }
 </style>
 </head>
@@ -163,7 +161,7 @@
     <button id="send">➤</button>
   </div>
 </div>
-<div id="viewer" onclick="this.style.display='none'"><img id="viewerImg"></div>
+<div id="viewer" onclick="closeViewer()"><img id="viewerImg"></div>
 
 <script>
 const chat = document.getElementById('chat');
@@ -230,7 +228,14 @@ function md(text) {
 }
 function viewImg(src) {
   document.getElementById('viewerImg').src = src;
-  document.getElementById('viewer').style.display = 'flex';
+  document.getElementById('viewer').style.display = 'block';
+  // 打开查看器时允许缩放
+  document.querySelector('meta[name=viewport]').setAttribute('content','width=device-width,initial-scale=1.0,user-scalable=yes');
+}
+function closeViewer() {
+  document.getElementById('viewer').style.display = 'none';
+  // 关闭查看器时恢复禁止缩放
+  document.querySelector('meta[name=viewport]').setAttribute('content','width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover');
 }
 
 function addMsg(role, content, isTyping) {
