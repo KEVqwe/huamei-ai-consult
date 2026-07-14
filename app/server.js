@@ -76,36 +76,35 @@ const KB = loadKnowledge();
 const SYSTEM_BASE = fs.readFileSync(path.join(ROOT, 'prompts', 'system.md'), 'utf8');
 
 // ---------- RAG 检索：根据用户问题匹配最相关的知识库文档 ----------
+// 评分只看"查询与文档的相关性"：frontmatter关键词命中 + 文档名命中。
+// （注意：不要拿文档自身关键词去匹配自身正文——那是自评分，会给所有文档保底分，
+//   导致排序与提问无关，曾造成"热玛吉"检索不到皮肤科价目表的bug。）
 function retrieveDocs(userMessage, limit = 4) {
   const t = (userMessage || '').toLowerCase();
   const scored = KB.docs.map(doc => {
     let score = 0;
-    // 关键词命中加分（每个命中 +3）
     for (const kw of doc._keywords) {
-      if (t.includes(kw)) score += 3;
+      if (kw && t.includes(kw)) score += 3;
     }
-    // 文档名命中加分
     if (t.includes(doc.name.toLowerCase())) score += 5;
-    // 正文关键词命中（采样前500字）
-    const bodySample = doc.text.slice(0, 500).toLowerCase();
-    for (const kw of doc._keywords) {
-      if (bodySample.includes(kw)) score += 0.5;
-    }
     return { doc, score };
   });
   scored.sort((a, b) => b.score - a.score);
-  // 至少返回目录索引（始终包含）
-  const result = [];
-  const hasDir = scored.find(s => s.doc.name === '项目与科室目录');
-  if (hasDir && hasDir.score < 1) hasDir.score = 1; // 确保目录始终有最低分
-  for (const s of scored) {
-    if (s.score > 0 && result.length < limit) result.push(s.doc);
+  const result = scored.filter(s => s.score > 0).slice(0, limit).map(s => s.doc);
+  // 目录文档兜底：没占满或未入选时补上（模型至少知道全院有什么项目）
+  if (!result.find(d => d.name === '项目与科室目录')) {
+    const dir = KB.docs.find(d => d.name === '项目与科室目录');
+    if (dir) {
+      if (result.length < limit) result.push(dir);
+      else result[limit - 1] = dir;
+    }
   }
-  // 如果没匹配到任何文档，至少给目录+医生+政策
-  if (result.length === 0) {
-    result.push(
-      ...KB.docs.filter(d => ['项目与科室目录', '医生团队', '当月政策与活动'].includes(d.name))
-    );
+  // 完全没命中：给目录+医生+政策三件套
+  if (result.length <= 1) {
+    for (const name of ['医生团队', '当月政策与活动']) {
+      const d = KB.docs.find(x => x.name === name);
+      if (d && !result.includes(d) && result.length < limit) result.push(d);
+    }
   }
   return result.slice(0, limit);
 }
@@ -329,9 +328,17 @@ function searchSections(queries, limit = 2) {
 }
 
 function trimSection(text, maxLines = 18) {
-  const lines = text.split('\n');
-  if (lines.length <= maxLines) return text;
-  return lines.slice(0, maxLines).join('\n') + '\n（还有更多没列全，您到院还能看完整价目～）';
+  // 剔除内部注释（"> 来源：..."引用行、"---"分隔线），客户不应看到转录出处
+  const lines = text.split('\n')
+    .filter(l => !/^\s*>/.test(l) && !/^\s*-{3,}\s*$/.test(l));
+  // 合并连续空行
+  const cleaned = [];
+  for (const l of lines) {
+    if (!l.trim() && cleaned.length && !cleaned[cleaned.length - 1].trim()) continue;
+    cleaned.push(l);
+  }
+  if (cleaned.length <= maxLines) return cleaned.join('\n').trim();
+  return cleaned.slice(0, maxLines).join('\n').trim() + '\n（还有更多没列全，您到院还能看完整价目～）';
 }
 
 // 把长句按中文句末标点拆成短消息段（模拟真人一句一句发）
@@ -475,9 +482,13 @@ const server = http.createServer(async (req, res) => {
         const { messages } = JSON.parse(body || '{}');
         if (!Array.isArray(messages) || !messages.length) throw new Error('messages required');
         const lastUser = messages[messages.length - 1].content || '';
+        // RAG检索用最近3条用户消息拼接：避免客户追问"那多少钱"时检索不到上文项目的价目文档
+        const retrievalQuery = messages
+          .filter(m => m.role === 'user').slice(-3)
+          .map(m => m.content).join(' ');
         let segments;
         if (PROVIDER === 'deepseek' || PROVIDER === 'claude') {
-          const sysPrompt = buildFullSystemPrompt(lastUser);
+          const sysPrompt = buildFullSystemPrompt(retrievalQuery);
           const raw = PROVIDER === 'deepseek'
             ? await deepseekReply(messages.slice(-20), sysPrompt)
             : await claudeReply(messages.slice(-20), sysPrompt);

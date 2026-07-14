@@ -25,7 +25,27 @@
       "Bash(PORT=3092 node app/server.js)",
       "Bash(curl -s -X POST localhost:3092/api/chat -H 'content-type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"双眼皮哪个医生好\"}]}')",
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{JSON.parse\\(d\\).segments.forEach\\(\\(s,i\\)=>console.log\\(i+':',s.slice\\(0,100\\).replace\\(/\\\\n/g,' '\\)\\)\\)}\\)\")",
-      "WebSearch"
+      "WebSearch",
+      "Bash(node -c \"C:/Users/shengwen.ouyang/Desktop/AI医美咨询Demo/app/server.js\")",
+      "Bash(node -e \"require\\('./app/server.js'\\)\")",
+      "Bash(curl -s http://localhost:3080/api/status)",
+      "Bash(curl -s http://localhost:3081/api/status)",
+      "Bash(git *)",
+      "Bash(curl -s -X POST http://localhost:3081/api/chat -H 'content-type: application/json' -d '{\\\\\"messages\\\\\":[{\\\\\"role\\\\\":\\\\\"user\\\\\",\\\\\"content\\\\\":\\\\\"你好\\\\\"}]}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);j.segments.forEach\\(\\(s,i\\)=>console.log\\(i+': ['+s.length+'字] '+s.slice\\(0,60\\)\\)\\)}\\)\")",
+      "PowerShell($body = '{\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]}'; $r = Invoke-RestMethod -Uri http://localhost:3081/api/chat -Method Post -Body $body -ContentType 'application/json'; $r.segments | ForEach-Object { \"$_\" })",
+      "Bash(node *)",
+      "Bash(pkill -f \"node.*server.js\")",
+      "Bash(PORT=3098 node app/server.js)",
+      "Bash(curl -s http://localhost:3098/api/status)",
+      "Bash(PORT=3095 node app/server.js)",
+      "Bash(curl -s http://localhost:3095/api/status)",
+      "Bash(curl *)",
+      "Bash(PORT=3089 node app/server.js)",
+      "WebFetch(domain:www.bing.com)",
+      "Bash(PORT=3087 node app/server.js)",
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
+      "PowerShell($pids = Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -ge 3080 -and $_.LocalPort -le 3099 } | Select-Object LocalPort, OwningProcess; $pids | Format-Table -AutoSize; $pids | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -Confirm:$false } catch {} }; \"cleaned: $\\($pids.Count\\)\")"
     ]
   }
 }
