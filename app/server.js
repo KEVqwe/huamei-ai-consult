@@ -251,9 +251,6 @@ function demoReply(userText) {
       '好的呀，到院面诊免费的～',
       '医生会根据您情况定制方案',
       '方便留一下称呼和电话吗？',
-      '想面诊什么项目？',
-      '大概什么时间方便呢？',
-      '对了，新客到院还能免费领体验项目哦',
     ];
   }
   let best = null, bestHits = 0;
@@ -268,10 +265,8 @@ function demoReply(userText) {
       segs.push('发您看下价目表👇');
       segs.push(trimSection(secs[0].text.replace(/^#{1,2}.*\n/, '')));
     }
-    // 活动引导也拆短
+    // 只补充一句，不连发推销
     segs.push(
-      '这个月有高定大师季活动',
-      '新客消费送超光子嫩肤哦',
       '价格以到院面诊为准哈',
       '方便说说您的情况吗？',
     );
