@@ -17,7 +17,14 @@
       "PowerShell(Expand-Archive -Path 素材\\\\医生介绍.zip -DestinationPath 素材 -Force; Expand-Archive -Path 素材\\\\项目介绍.zip -DestinationPath 素材 -Force; \\(Get-ChildItem 素材\\\\医生介绍 -Recurse -File\\).Count; \\(Get-ChildItem 素材\\\\项目介绍 -Recurse -File\\).Count)",
       "PowerShell(Get-ChildItem 素材\\\\医生介绍 -Recurse -File | ForEach-Object { $_.FullName.Replace\\(\"$PWD\\\\素材\\\\医生介绍\\\\\",''\\) } | Sort-Object)",
       "PowerShell(Get-ChildItem 素材\\\\项目介绍 -Recurse -Directory | ForEach-Object { $_.FullName.Replace\\(\"$PWD\\\\素材\\\\项目介绍\\\\\",''\\) } | Sort-Object)",
-      "PowerShell(git add -A)"
+      "PowerShell(git add -A)",
+      "PowerShell(git push origin main 2>&1)",
+      "Bash(PORT=3093 node app/server.js)",
+      "Bash(curl -s -X POST localhost:3093/api/chat -H 'content-type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"双眼皮哪个医生好\"}]}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('本地模式 segments:',j.segments.length,'| 图片:',j.segments.filter\\(s=>s.startsWith\\('!['\\)\\).map\\(s=>s.match\\(/!\\\\[\\(.*?\\)\\\\]/\\)[1]\\)\\)}\\)\")",
+      "Bash(PORT=3092 node app/server.js)",
+      "Bash(curl -s -X POST localhost:3092/api/chat -H 'content-type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"双眼皮哪个医生好\"}]}')",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{JSON.parse\\(d\\).segments.forEach\\(\\(s,i\\)=>console.log\\(i+':',s.slice\\(0,100\\).replace\\(/\\\\n/g,' '\\)\\)\\)}\\)\")"
     ]
   }
 }

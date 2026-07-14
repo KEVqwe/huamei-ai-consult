@@ -52,7 +52,7 @@ function loadKnowledge() {
   return { docs, sections };
 }
 const KB = loadKnowledge();
-const SYSTEM_PROMPT =
+const SYSTEM_BASE =
   fs.readFileSync(path.join(ROOT, 'prompts', 'system.md'), 'utf8') +
   '\n\n' +
   KB.docs.map(d => `<知识库文档 name="${d.name}">\n${d.text}\n</知识库文档>`).join('\n\n');
@@ -92,6 +92,32 @@ const IMAGE_CATALOG = [
   { file: '医生介绍/毛发移植科/刘学新 主任/刘学新个人介绍.jpg', tags: ['刘学新', '植发', '毛发移植', '发际线', '种植'], desc: '刘学新主任（毛发移植）' },
   { file: '医生介绍/特邀专家/韩国医生专家团.jpg', tags: ['韩国专家', '特邀专家'], desc: '韩国医生专家团' },
 ];
+// 完整系统提示词 = 人设+知识库+可用图片清单（模型用 [[图:标签]] 主动发图）
+const SYSTEM_PROMPT = SYSTEM_BASE + '\n\n# 可用图片清单\n' +
+  IMAGE_CATALOG.map(c => `- [[图:${c.tags[0]}]] ${c.desc}`).join('\n');
+
+function imageSegment(entry) {
+  return `![${entry.desc}](/assets/${encodeURI(entry.file.replace(/\\/g, '/'))})`;
+}
+
+// 解析大模型回复中的 [[图:标签]] 标记，替换为独立的图片消息（一轮最多2张）
+function expandImageMarkers(segments) {
+  const out = [];
+  let count = 0;
+  for (let seg of segments) {
+    const labels = [];
+    seg = seg.replace(/\[\[图[:：]\s*([^\]]+?)\s*\]\]/g, (_, label) => { labels.push(label.trim()); return ''; }).trim();
+    if (seg) out.push(seg);
+    for (const label of labels) {
+      if (count >= 2) break;
+      const e = IMAGE_CATALOG.find(c => c.tags.includes(label)) ||
+                IMAGE_CATALOG.find(c => c.tags.some(t => label.includes(t)) || c.desc.includes(label));
+      if (e) { out.push(imageSegment(e)); count++; }
+    }
+  }
+  return out;
+}
+
 function pickImages(text, max = 2) {
   const t = (text || '').toLowerCase();
   const hits = [];
@@ -268,13 +294,14 @@ const server = http.createServer(async (req, res) => {
         let segments;
         if (PROVIDER === 'deepseek' || PROVIDER === 'claude') {
           const raw = PROVIDER === 'deepseek' ? await deepseekReply(messages.slice(-20)) : await claudeReply(messages.slice(-20));
-          segments = raw.split('|||').map(s => s.trim()).filter(Boolean);
+          // 大模型自主决定发图：解析 [[图:标签]] 标记
+          segments = expandImageMarkers(raw.split('|||').map(s => s.trim()).filter(Boolean));
         } else {
           segments = demoReply(lastUser);
-        }
-        // 按话题自动配图（像真人顾问随手发图）：匹配用户提问+第一条回复（提到医生名/项目名会带图；不匹配结尾的活动话术，避免每次都发政策图）
-        for (const img of pickImages(lastUser + ' ' + (segments[0] || ''), 2)) {
-          segments.push(`![${img.desc}](${img.url})`);
+          // 本地模式：按话题关键词自动配图（匹配用户提问+第一条回复）
+          for (const img of pickImages(lastUser + ' ' + (segments[0] || ''), 2)) {
+            segments.push(`![${img.desc}](${img.url})`);
+          }
         }
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ segments, reply: segments.join('\n\n'), mode: PROVIDER }));
