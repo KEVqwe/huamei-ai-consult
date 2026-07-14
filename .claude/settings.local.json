@@ -45,7 +45,9 @@
       "WebFetch(domain:www.bing.com)",
       "Bash(PORT=3087 node app/server.js)",
       "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
-      "PowerShell($pids = Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -ge 3080 -and $_.LocalPort -le 3099 } | Select-Object LocalPort, OwningProcess; $pids | Format-Table -AutoSize; $pids | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -Confirm:$false } catch {} }; \"cleaned: $\\($pids.Count\\)\")"
+      "PowerShell($pids = Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -ge 3080 -and $_.LocalPort -le 3099 } | Select-Object LocalPort, OwningProcess; $pids | Format-Table -AutoSize; $pids | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -Confirm:$false } catch {} }; \"cleaned: $\\($pids.Count\\)\")",
+      "WebFetch(domain:www.shhuamei.cn)",
+      "Bash(cd \"/c/Users/SHENGW~1.OUY/AppData/Local/Temp/claude/C--Users-shengwen-ouyang-Desktop-AI----Demo/1f5b1027-ac63-4706-9b4d-35ab562e1134/scratchpad\" && curl -s -L --max-time 30 -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\)\" http://www.shhuamei.cn/ -o home.html && ls -la home.html && head -c 600 home.html)"
     ]
   }
 }
