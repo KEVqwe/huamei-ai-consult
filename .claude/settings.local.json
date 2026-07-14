@@ -24,7 +24,8 @@
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('本地模式 segments:',j.segments.length,'| 图片:',j.segments.filter\\(s=>s.startsWith\\('!['\\)\\).map\\(s=>s.match\\(/!\\\\[\\(.*?\\)\\\\]/\\)[1]\\)\\)}\\)\")",
       "Bash(PORT=3092 node app/server.js)",
       "Bash(curl -s -X POST localhost:3092/api/chat -H 'content-type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"双眼皮哪个医生好\"}]}')",
-      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{JSON.parse\\(d\\).segments.forEach\\(\\(s,i\\)=>console.log\\(i+':',s.slice\\(0,100\\).replace\\(/\\\\n/g,' '\\)\\)\\)}\\)\")"
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{JSON.parse\\(d\\).segments.forEach\\(\\(s,i\\)=>console.log\\(i+':',s.slice\\(0,100\\).replace\\(/\\\\n/g,' '\\)\\)\\)}\\)\")",
+      "WebSearch"
     ]
   }
 }
