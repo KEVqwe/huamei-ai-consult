@@ -77,6 +77,8 @@
   .bubble img {
     max-width: 100%; border-radius: 10px; margin: 2px 0; cursor: pointer;
     display: block; min-height: 60px; background: #faf2f6;
+    -webkit-user-drag: none; user-select: none;
+    pointer-events: auto;
   }
   .bubble.img-only { padding: 4px; background: transparent; box-shadow: none; }
   .sys-msg { text-align: center; margin-bottom: 14px; }
@@ -131,7 +133,7 @@
     <div class="avatar">💐</div>
     <div class="info">
       <h1>小美 · 华美美学顾问</h1>
-      <div class="sub"><span class="dot"></span><span id="subStatus">在线 · 通常几秒内回复</span></div>
+      <div class="sub"><span class="dot"></span><span id="subStatus">在线</span></div>
     </div>
   </header>
 
@@ -195,7 +197,7 @@ function md(text) {
   text = text.replace(/\n{2,}/g, '\n');
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const inline = s => esc(s)
-    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight">')
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false">')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   const lines = text.split('\n');
   let html = '', tbl = [];
@@ -247,6 +249,7 @@ function addSysMsg(text) {
   row.innerHTML = `<span>${text.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`;
   chat.appendChild(row);
   chat.scrollTop = chat.scrollHeight;
+  return row;
 }
 
 // 像真人一样：逐条显示，打字时长≈真人手速（约14字/秒），发图/表格像发文件一样快
@@ -283,7 +286,7 @@ async function showSegments(segments) {
     chat.scrollTop = chat.scrollHeight;
     await sleep(250 + Math.random() * 350); // 条与条之间的自然间隔
   }
-  subStatus.textContent = '在线 · 通常几秒内回复';
+  subStatus.textContent = '在线';
 }
 
 async function send(text) {
@@ -343,11 +346,12 @@ sendBtn.onclick = () => send();
 input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
 document.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.textContent));
 
-// 欢迎语（淘宝客服入场效果：页面加载→短暂停顿→"接入中"→接入延迟→顾问开场）
+// 欢迎语（淘宝客服入场效果：页面加载→短暂停顿→"接入中"→接入延迟→顾问开场→隐藏接入提示）
 (async () => {
-  await sleep(400 + Math.random() * 500);  // 0.4~0.9秒后弹出"接入中"
-  addSysMsg('正在为您接入人工客服...');
-  await sleep(1800 + Math.random() * 1500);  // 1.8~3.3 秒接入延迟
+  await sleep(400 + Math.random() * 500);
+  const sysEl = addSysMsg('正在为您接入人工客服...');
+  await sleep(1800 + Math.random() * 1500);
+  if (sysEl) sysEl.remove();  // 接入完成，移除系统提示
   const greeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
   await showSegments([greeting]);
   history.push({ role: 'assistant', content: greeting });
