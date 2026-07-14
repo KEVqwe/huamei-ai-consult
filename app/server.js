@@ -100,6 +100,32 @@ function imageSegment(entry) {
   return `![${entry.desc}](/assets/${encodeURI(entry.file.replace(/\\/g, '/'))})`;
 }
 
+// 智能拆分：优先 |||，否则按换行拆（表格行保持在一起）
+function smartSplit(raw) {
+  if (!raw || !raw.trim()) return [];
+  // 模型正确用了 ||| 分隔符
+  if (raw.includes('|||')) {
+    return raw.split('|||').map(s => s.trim()).filter(Boolean);
+  }
+  // 兜底：按换行拆分
+  const lines = raw.split('\n');
+  const segs = [];
+  let buf = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) { if (buf.length) { segs.push(buf.join('\n')); buf = []; } continue; }
+    // 表格行（|...|）合并在一起
+    if (/^\|.*\|$/.test(t)) {
+      buf.push(t);
+    } else {
+      if (buf.length) { segs.push(buf.join('\n')); buf = []; }
+      segs.push(t);
+    }
+  }
+  if (buf.length) segs.push(buf.join('\n'));
+  return segs.length ? segs : [raw];
+}
+
 // 解析大模型回复中的 [[图:标签]] 标记，替换为独立的图片消息（一轮最多2张）
 function expandImageMarkers(segments) {
   const out = [];
@@ -338,7 +364,7 @@ const server = http.createServer(async (req, res) => {
         if (PROVIDER === 'deepseek' || PROVIDER === 'claude') {
           const raw = PROVIDER === 'deepseek' ? await deepseekReply(messages.slice(-20)) : await claudeReply(messages.slice(-20));
           // 大模型自主决定发图：解析 [[图:标签]] 标记
-          segments = expandImageMarkers(raw.split('|||').map(s => s.trim()).filter(Boolean));
+          segments = expandImageMarkers(smartSplit(raw));
         } else {
           segments = demoReply(lastUser);
           // 本地模式：按话题关键词自动配图（匹配用户提问+第一条回复）
