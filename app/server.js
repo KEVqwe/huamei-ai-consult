@@ -204,6 +204,16 @@ function imageSegment(entry) {
   return `![${entry.desc}](/assets/${encodeURI(entry.file.replace(/\\/g, '/'))})`;
 }
 
+// 净化模型输出：字面 \n 转真换行、剥掉Markdown转义反斜杠（\[ \* 等）、清除孤立反斜杠
+// （曾出现模型模仿被编辑器转义污染的提示词，输出 "\[\[图:佀医生]]"，
+//   图片标记被解析后文字里残留 "\"；或输出字面 "\n" 未被换行渲染）
+function sanitizeModelText(raw) {
+  return (raw || '')
+    .replace(/\\r\\n|\\n|\\r/g, '\n')          // 字面 \n / \r\n → 真换行
+    .replace(/\\([\[\]()*_~#>|`-])/g, '$1')    // 转义符还原：\[ → [ 、\* → * 等
+    .replace(/\\/g, '');                        // 兜底：剩余孤立反斜杠全部剔除
+}
+
 // 智能拆分：优先 |||，否则按换行拆（表格行保持在一起）
 function smartSplit(raw) {
   if (!raw || !raw.trim()) return [];
@@ -502,8 +512,8 @@ const server = http.createServer(async (req, res) => {
           const raw = PROVIDER === 'deepseek'
             ? await deepseekReply(messages.slice(-20), sysPrompt)
             : await claudeReply(messages.slice(-20), sysPrompt);
-          // 大模型自主决定发图：解析 [[图:标签]] 标记
-          segments = expandImageMarkers(smartSplit(raw));
+          // 净化 → 分段 → 解析 [[图:标签]] 发图标记
+          segments = expandImageMarkers(smartSplit(sanitizeModelText(raw)));
         } else {
           segments = demoReply(lastUser);
           // 本地模式：按话题关键词自动配图（匹配用户提问+第一条回复）
