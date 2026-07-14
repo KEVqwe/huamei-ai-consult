@@ -104,14 +104,22 @@ function imageSegment(entry) {
 function expandImageMarkers(segments) {
   const out = [];
   let count = 0;
+  // 宽松匹配：允许 [[ 图:标签 ]] / [[图：标签]] / [[ 图 : 标签 ]] 等变体
+  const RE = /\[\[\s*图\s*[:：]\s*([^\]]+?)\s*\]\]/g;
   for (let seg of segments) {
     const labels = [];
-    seg = seg.replace(/\[\[图[:：]\s*([^\]]+?)\s*\]\]/g, (_, label) => { labels.push(label.trim()); return ''; }).trim();
+    seg = seg.replace(RE, (_, label) => { labels.push(label.trim()); return ''; }).trim();
     if (seg) out.push(seg);
     for (const label of labels) {
       if (count >= 2) break;
-      const e = IMAGE_CATALOG.find(c => c.tags.includes(label)) ||
-                IMAGE_CATALOG.find(c => c.tags.some(t => label.includes(t)) || c.desc.includes(label));
+      // 精确匹配标签 → 模糊匹配（标签含关键词 / 描述含关键词）
+      let e = IMAGE_CATALOG.find(c => c.tags.includes(label));
+      if (!e) {
+        e = IMAGE_CATALOG.find(c =>
+          c.tags.some(t => label.includes(t) || t.includes(label)) ||
+          c.desc.includes(label)
+        );
+      }
       if (e) { out.push(imageSegment(e)); count++; }
     }
   }
@@ -208,16 +216,16 @@ function demoReply(userText) {
     const secs = searchSections(best.q, 1);
     const segs = [best.intro + '～'];
     if (secs.length) {
-      segs.push('我把相关的价目发您看下👇\n\n' + trimSection(secs[0].text.replace(/^#{1,2}.*\n/, '')));
+      segs.push('我把相关的价目发您看下👇\n' + trimSection(secs[0].text.replace(/^#{1,2}.*\n/, '')));
     }
-    segs.push('这个月正好有"高定大师季"活动，新客任意消费还送AOPT超光子嫩肤1次😊 价格以到院面诊为准哈。\n\n方便说说您的具体情况吗？部位、困扰多久了、有没有做过类似项目～');
+    segs.push('这个月正好有"高定大师季"活动，新客任意消费还送AOPT超光子嫩肤1次😊 价格以到院面诊为准哈。\n方便说说您的具体情况吗？部位、困扰多久了、有没有做过类似项目～');
     return segs;
   }
   const words = t.replace(/[，。？！,.?!\s]+/g, ' ').split(' ').filter(w => w.length >= 2);
   const secs = searchSections(words, 1);
   if (secs.length) {
     return [
-      '帮您查到了相关的信息👇\n\n' + trimSection(secs[0].text.replace(/^#{1,2}.*\n/, '')),
+      '帮您查到了相关的信息👇\n' + trimSection(secs[0].text.replace(/^#{1,2}.*\n/, '')),
       '价格以到院面诊为准哈～您还想了解哪方面？',
     ];
   }

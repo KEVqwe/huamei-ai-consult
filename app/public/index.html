@@ -79,6 +79,11 @@
     display: block; min-height: 60px; background: #faf2f6;
   }
   .bubble.img-only { padding: 4px; background: transparent; box-shadow: none; }
+  .sys-msg { text-align: center; margin-bottom: 14px; }
+  .sys-msg span {
+    display: inline-block; font-size: 11px; color: #a89aa0;
+    background: #f0eaec; padding: 5px 14px; border-radius: 6px;
+  }
   .typing { display: inline-flex; gap: 4px; padding: 4px 2px; }
   .typing i { width: 7px; height: 7px; background: #d3a4b8; border-radius: 50%; animation: blink 1.2s infinite; }
   .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
@@ -164,6 +169,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // 极简 Markdown 渲染（粗体 / 表格 / 标题 / 图片）
 function md(text) {
+  if (!text) return '';
+  // 兜底：剔除服务端未处理的 [[图:标签]] 残留标记
+  text = text.replace(/\[\[\s*图\s*[:：]\s*[^\]]+?\s*\]\]/g, '');
+  // 真人不空行：合并连续换行，最多保留一个换行
+  text = text.replace(/\n{2,}/g, '\n');
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const inline = s => esc(s)
     .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight">')
@@ -184,7 +194,7 @@ function md(text) {
     if (/^\s*\|.*\|\s*$/.test(line)) { tbl.push(line); continue; }
     flushTbl();
     if (/^#{1,4}\s/.test(line)) html += `<h4>${inline(line.replace(/^#+\s*/,''))}</h4>`;
-    else html += inline(line) + '\n';
+    else if (line.trim()) html += inline(line) + '\n';  // 跳过纯空行
   }
   flushTbl();
   return html.replace(/\n$/,'');
@@ -209,6 +219,15 @@ function addMsg(role, content, isTyping) {
   chat.appendChild(row);
   chat.scrollTop = chat.scrollHeight;
   return { row, b };
+}
+
+// 系统消息（居中灰色小字，如"正在接入人工客服..."）
+function addSysMsg(text) {
+  const row = document.createElement('div');
+  row.className = 'sys-msg';
+  row.innerHTML = `<span>${text.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`;
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
 }
 
 // 像真人一样：逐条显示，打字时长≈真人手速（约14字/秒），发图/表格像发文件一样快
@@ -242,8 +261,9 @@ async function send(text) {
   sendBtn.disabled = true;
   addMsg('user', text);
   history.push({ role: 'user', content: text });
-  const { row, b } = addMsg('bot', '', true);
-  try {
+
+  // 先发起 API 请求，但不立刻显示"正在输入"
+  const apiPromise = (async () => {
     let res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-access-code': localStorage.getItem('hm_code') || '' },
@@ -263,6 +283,17 @@ async function send(text) {
     const data = await res.json();
     if (data.error === 'access_code_required') throw new Error('访问口令不正确');
     if (data.error) throw new Error(data.error);
+    return data;
+  })();
+
+  // 真人思考延迟：1.8~3.8 秒后再显示"正在输入"
+  const thinkDelay = 1800 + Math.random() * 2000;
+  await sleep(thinkDelay);
+
+  // 现在才展示打字状态
+  const { row, b } = addMsg('bot', '', true);
+  try {
+    const data = await apiPromise;
     row.remove();
     const segs = data.segments && data.segments.length ? data.segments : [data.reply];
     await showSegments(segs);
@@ -280,13 +311,13 @@ sendBtn.onclick = () => send();
 input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
 document.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.textContent));
 
-// 欢迎语（真人顾问口吻，分两条）
+// 欢迎语（淘宝客服入场效果：先显示"接入中"，再弹出顾问第一句话）
 (async () => {
-  await showSegments([
-    '亲，在的哦～我是华美的美学顾问小美😊',
-    '您最近是想改善皮肤，还是想了解什么项目呀？祛斑、抗衰、瘦脸、双眼皮这些都可以问我，也可以点下面的标签快速了解👇',
-  ]);
-  history.push({ role: 'assistant', content: '亲，在的哦～我是华美的美学顾问小美😊 您最近是想改善皮肤，还是想了解什么项目呀？' });
+  addSysMsg('正在为您接入人工客服...');
+  await sleep(1800 + Math.random() * 1500);  // 1.8~3.3 秒接入延迟
+  // 第一句话要短，像真人客服开场
+  await showSegments(['您好，请问有什么需要咨询的呢？']);
+  history.push({ role: 'assistant', content: '您好，请问有什么需要咨询的呢？' });
 })();
 </script>
 </body>
