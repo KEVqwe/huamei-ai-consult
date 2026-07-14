@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>小美 · 华美美学顾问</title>
 <style>
   :root {
@@ -119,12 +119,20 @@
     display: flex; align-items: center; justify-content: center;
   }
   #send:disabled { opacity: .5; }
-  /* 图片放大预览 */
+  /* 图片放大预览（移动端支持双指缩放） */
   #viewer {
-    position: fixed; inset: 0; background: rgba(0,0,0,.85);
-    display: none; align-items: center; justify-content: center; z-index: 99;
+    position: fixed; inset: 0; background: rgba(0,0,0,.92);
+    display: none; z-index: 99;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
   }
-  #viewer img { max-width: 96vw; max-height: 92vh; border-radius: 8px; }
+  #viewer img {
+    display: block; margin: auto;
+    max-width: none; width: 100%; height: auto;
+    border-radius: 8px;
+    cursor: zoom-out;
+    touch-action: pinch-zoom;
+  }
 </style>
 </head>
 <body>
