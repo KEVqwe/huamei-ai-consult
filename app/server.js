@@ -191,20 +191,43 @@ function trimSection(text, maxLines = 18) {
   return lines.slice(0, maxLines).join('\n') + '\n（还有更多没列全，您到院还能看完整价目～）';
 }
 
-// 返回 消息分段数组（模拟真人连发几条微信）
+// 把长句按中文句末标点拆成短消息段（模拟真人一句一句发）
+function splitShort(text) {
+  return text.split(/(?<=[：。！？～])/g).map(s => s.trim()).filter(s => s.length > 0);
+}
+
+// 招呼语随机池（每个元素是一条短消息数组）
+const GREET_POOL = [
+  ['在的～', '我是华美顾问小美', '您想了解什么项目呀？'],
+  ['在的呢', '我是小美，在华美做了五年多咨询', '有什么可以帮您的？'],
+  ['嗯嗯在的～', '您想咨询哪方面呢？'],
+  ['在的', '有什么可以帮您的？'],
+];
+
+// 返回 消息分段数组（模拟真人连发几条微信，每条≤20字）
 function demoReply(userText) {
   const t = (userText || '').toLowerCase();
+  const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
   if (/(机器人|是真人|是人吗|ai|人工智能|智能客服)/.test(t)) {
-    return ['哈哈我是华美的顾问小美呀😊 在院里做了五年多咨询啦', '您刚才想了解什么项目？我帮您详细看下～'];
+    return [
+      '哈哈我是华美的顾问小美呀',
+      '在院里做了五年多咨询啦',
+      '您想了解什么项目？',
+      '我帮您详细看下～',
+    ];
   }
   if (/^(你好|您好|hi|hello|在吗|嗨)/.test(t.trim()) && t.length < 8) {
-    return ['亲，在的哦～我是华美的美学顾问小美😊', '您最近是想改善皮肤，还是想了解什么项目呀？祛斑、抗衰、瘦脸、双眼皮这些都可以问我～'];
+    return rand(GREET_POOL);
   }
   if (/(预约|面诊|地址|怎么去|电话|联系|挂号|到院)/.test(t)) {
     return [
-      '好的呀～到院面诊是免费的，医生会根据您的情况定制方案😊',
-      '方便留一下您的称呼和联系电话吗？想面诊的项目和大概时间也说一下，我这边帮您约～',
-      '对了，新朋友到院面诊还能免费领基础水光/光子嫩肤/面膜/舒敏之星/私密SPA体验（5选1）哦🌸',
+      '好的呀，到院面诊免费的～',
+      '医生会根据您情况定制方案',
+      '方便留一下称呼和电话吗？',
+      '想面诊什么项目？',
+      '大概什么时间方便呢？',
+      '对了，新客到院还能免费领体验项目哦',
     ];
   }
   let best = null, bestHits = 0;
@@ -214,24 +237,36 @@ function demoReply(userText) {
   }
   if (best) {
     const secs = searchSections(best.q, 1);
-    const segs = [best.intro + '～'];
+    const segs = splitShort(best.intro);
     if (secs.length) {
-      segs.push('我把相关的价目发您看下👇\n' + trimSection(secs[0].text.replace(/^#{1,2}.*\n/, '')));
+      segs.push('发您看下价目表👇');
+      segs.push(trimSection(secs[0].text.replace(/^#{1,2}.*\n/, '')));
     }
-    segs.push('这个月正好有"高定大师季"活动，新客任意消费还送AOPT超光子嫩肤1次😊 价格以到院面诊为准哈。\n方便说说您的具体情况吗？部位、困扰多久了、有没有做过类似项目～');
+    // 活动引导也拆短
+    segs.push(
+      '这个月有高定大师季活动',
+      '新客消费送超光子嫩肤哦',
+      '价格以到院面诊为准哈',
+      '方便说说您的情况吗？',
+    );
     return segs;
   }
   const words = t.replace(/[，。？！,.?!\s]+/g, ' ').split(' ').filter(w => w.length >= 2);
   const secs = searchSections(words, 1);
   if (secs.length) {
     return [
-      '帮您查到了相关的信息👇\n' + trimSection(secs[0].text.replace(/^#{1,2}.*\n/, '')),
-      '价格以到院面诊为准哈～您还想了解哪方面？',
+      '帮您查了下',
+      trimSection(secs[0].text.replace(/^#{1,2}.*\n/, '')),
+      '价格以到院面诊为准哈',
+      '您还想了解哪方面？',
     ];
   }
   return [
     '亲，这个我帮您确认下细节哈～',
-    '您可以直接说关注的部位或项目（比如：祛斑、水光、双眼皮、瘦脸针、热玛吉、脱毛、会员权益、本月活动），我马上帮您查😊 或者约个免费面诊，医生当面给您看更准～',
+    '您可以直接说关注的部位或项目',
+    '比如祛斑、水光、双眼皮这些',
+    '我马上帮您查',
+    '也可以约免费面诊，医生当面看更准',
   ];
 }
 

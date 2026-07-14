@@ -117,9 +117,6 @@
     display: flex; align-items: center; justify-content: center;
   }
   #send:disabled { opacity: .5; }
-  .disclaimer {
-    text-align: center; font-size: 10px; color: #b9a3ac; padding: 0 16px 8px; background: #fff;
-  }
   /* 图片放大预览 */
   #viewer {
     position: fixed; inset: 0; background: rgba(0,0,0,.85);
@@ -141,14 +138,13 @@
   <div id="chat"></div>
 
   <div id="chips">
-    <span class="chip">我想祛斑</span>
-    <span class="chip">水光针多少钱</span>
-    <span class="chip">热玛吉价格</span>
-    <span class="chip">瘦脸针</span>
     <span class="chip">双眼皮</span>
-    <span class="chip">脱毛</span>
+    <span class="chip">祛斑</span>
+    <span class="chip">瘦脸针</span>
+    <span class="chip">水光针</span>
+    <span class="chip">热玛吉</span>
+    <span class="chip">隆鼻</span>
     <span class="chip">本月活动</span>
-    <span class="chip">会员权益</span>
     <span class="chip">预约面诊</span>
   </div>
 
@@ -156,7 +152,6 @@
     <input id="input" type="text" placeholder="想了解什么都可以问我哦…" autocomplete="off">
     <button id="send">➤</button>
   </div>
-  <div class="disclaimer">内容仅供参考，具体方案与价格以到院面诊为准 · 医疗美容有风险</div>
 </div>
 <div id="viewer" onclick="this.style.display='none'"><img id="viewerImg"></div>
 
@@ -166,6 +161,30 @@ const input = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 const history = [];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// 招呼语随机池
+const GREETINGS = [
+  '您好，请问有什么需要咨询的呢？',
+  '你好呀，想了解什么项目呢？',
+  '您好，有什么可以帮您的？',
+  '嗨，想咨询哪方面呀？',
+  '你好，我是华美顾问小美，请问想咨询什么呢？',
+];
+
+// 根据用户问题复杂度估算真人思考时间（毫秒）
+function thinkDelay(text) {
+  const len = (text || '').length;
+  // 简单问候：1~2秒
+  if (/^(你好|您好|hi|hello|在吗|嗨|嗯|哦|好的|谢谢)/.test(text.trim()) && len <= 5) {
+    return 1000 + Math.random() * 1000;
+  }
+  // 短问题：1.5~3.5秒
+  if (len <= 12) return 1500 + Math.random() * 2000;
+  // 中等长度：2.5~5秒
+  if (len <= 30) return 2500 + Math.random() * 2500;
+  // 长问题/复杂需求：3.5~7秒
+  return 3500 + Math.random() * 3500;
+}
 
 // 极简 Markdown 渲染（粗体 / 表格 / 标题 / 图片）
 function md(text) {
@@ -242,9 +261,22 @@ function typingDelay(seg) {
 }
 async function showSegments(segments) {
   subStatus.textContent = '正在输入…';
-  for (const seg of segments) {
-    const { b } = addMsg('bot', '', true);
+  let imageHintShown = false;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
     const isImg = /^!\[.*\]\(.*\)$/.test(seg.trim());
+
+    // 第一张图片前：模拟"找图"停顿（前面有文字消息时才提示）
+    if (isImg && !imageHintShown && i > 0) {
+      imageHintShown = true;
+      const { b: hintB } = addMsg('bot', '', true);
+      await sleep(1500 + Math.random() * 1500);
+      hintB.innerHTML = '稍等下，我找下图片哈';
+      chat.scrollTop = chat.scrollHeight;
+      await sleep(500 + Math.random() * 400);
+    }
+
+    const { b } = addMsg('bot', '', true);
     await sleep(typingDelay(seg));
     b.innerHTML = md(seg);
     if (isImg) b.classList.add('img-only');
@@ -286,9 +318,9 @@ async function send(text) {
     return data;
   })();
 
-  // 真人思考延迟：1.8~3.8 秒后再显示"正在输入"
-  const thinkDelay = 1800 + Math.random() * 2000;
-  await sleep(thinkDelay);
+  // 真人思考延迟：根据问题复杂度随机
+  const td = thinkDelay(text);
+  await sleep(td);
 
   // 现在才展示打字状态
   const { row, b } = addMsg('bot', '', true);
@@ -311,13 +343,14 @@ sendBtn.onclick = () => send();
 input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
 document.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.textContent));
 
-// 欢迎语（淘宝客服入场效果：先显示"接入中"，再弹出顾问第一句话）
+// 欢迎语（淘宝客服入场效果：页面加载→短暂停顿→"接入中"→接入延迟→顾问开场）
 (async () => {
+  await sleep(400 + Math.random() * 500);  // 0.4~0.9秒后弹出"接入中"
   addSysMsg('正在为您接入人工客服...');
   await sleep(1800 + Math.random() * 1500);  // 1.8~3.3 秒接入延迟
-  // 第一句话要短，像真人客服开场
-  await showSegments(['您好，请问有什么需要咨询的呢？']);
-  history.push({ role: 'assistant', content: '您好，请问有什么需要咨询的呢？' });
+  const greeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+  await showSegments([greeting]);
+  history.push({ role: 'assistant', content: greeting });
 })();
 </script>
 </body>
