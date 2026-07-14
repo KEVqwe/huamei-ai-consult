@@ -34,13 +34,31 @@ const PROVIDER = DEEPSEEK_API_KEY ? 'deepseek' : API_KEY ? 'claude' : 'local';
 // 访问口令（公网部署时设置，防止接口被刷；不设置则不校验）
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-// ---------- 知识库加载 ----------
+// ---------- 知识库加载（含元信息解析） ----------
+function parseFrontmatter(text) {
+  const m = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
+  if (!m) return { meta: {}, body: text };
+  const meta = {};
+  m[1].split('\n').forEach(line => {
+    const kv = line.match(/^(\S+?):\s*(.+)/);
+    if (kv) meta[kv[1].trim()] = kv[2].trim();
+  });
+  return { meta, body: text.slice(m[0].length) };
+}
+
 function loadKnowledge() {
   const files = fs.readdirSync(KNOWLEDGE_DIR).filter(f => f.endsWith('.md'));
-  const docs = files.map(f => ({
-    name: f.replace(/\.md$/, ''),
-    text: fs.readFileSync(path.join(KNOWLEDGE_DIR, f), 'utf8'),
-  }));
+  const docs = files.map(f => {
+    const raw = fs.readFileSync(path.join(KNOWLEDGE_DIR, f), 'utf8');
+    const { meta, body } = parseFrontmatter(raw);
+    return {
+      name: f.replace(/\.md$/, ''),
+      text: body,                     // 不含元信息头的正文
+      meta,                           // { 科室, 类型, 关键词 }
+      _keywords: (meta['关键词'] || '').split(/[,，]/).map(k => k.trim().toLowerCase()).filter(Boolean),
+    };
+  });
+  // 分节（用于本地模式搜索）
   const sections = [];
   for (const d of docs) {
     const parts = d.text.split(/\n(?=## )/);
@@ -51,11 +69,55 @@ function loadKnowledge() {
   }
   return { docs, sections };
 }
+
 const KB = loadKnowledge();
-const SYSTEM_BASE =
-  fs.readFileSync(path.join(ROOT, 'prompts', 'system.md'), 'utf8') +
-  '\n\n' +
-  KB.docs.map(d => `<知识库文档 name="${d.name}">\n${d.text}\n</知识库文档>`).join('\n\n');
+
+// 基础系统提示词（人设+规则，不含知识库）
+const SYSTEM_BASE = fs.readFileSync(path.join(ROOT, 'prompts', 'system.md'), 'utf8');
+
+// ---------- RAG 检索：根据用户问题匹配最相关的知识库文档 ----------
+function retrieveDocs(userMessage, limit = 4) {
+  const t = (userMessage || '').toLowerCase();
+  const scored = KB.docs.map(doc => {
+    let score = 0;
+    // 关键词命中加分（每个命中 +3）
+    for (const kw of doc._keywords) {
+      if (t.includes(kw)) score += 3;
+    }
+    // 文档名命中加分
+    if (t.includes(doc.name.toLowerCase())) score += 5;
+    // 正文关键词命中（采样前500字）
+    const bodySample = doc.text.slice(0, 500).toLowerCase();
+    for (const kw of doc._keywords) {
+      if (bodySample.includes(kw)) score += 0.5;
+    }
+    return { doc, score };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  // 至少返回目录索引（始终包含）
+  const result = [];
+  const hasDir = scored.find(s => s.doc.name === '项目与科室目录');
+  if (hasDir && hasDir.score < 1) hasDir.score = 1; // 确保目录始终有最低分
+  for (const s of scored) {
+    if (s.score > 0 && result.length < limit) result.push(s.doc);
+  }
+  // 如果没匹配到任何文档，至少给目录+医生+政策
+  if (result.length === 0) {
+    result.push(
+      ...KB.docs.filter(d => ['项目与科室目录', '医生团队', '当月政策与活动'].includes(d.name))
+    );
+  }
+  return result.slice(0, limit);
+}
+
+// 动态构建系统提示词（仅注入检索到的相关文档，节省token）
+function buildSystemPrompt(userMessage) {
+  const relevant = retrieveDocs(userMessage);
+  const kbBlock = relevant.map(d =>
+    `<知识库文档 name="${d.name}" 科室="${d.meta['科室'] || ''}" 类型="${d.meta['类型'] || ''}">\n${d.text}\n</知识库文档>`
+  ).join('\n\n');
+  return SYSTEM_BASE + '\n\n' + kbBlock;
+}
 
 // ---------- 图片素材目录（关键词 → 素材图，自动配图发给客户） ----------
 // 标签规范：每条首标签为分类（皮科/微整/外科/医生/活动/会员），避免泛化词（案例/效果/活动）单独出现
@@ -137,10 +199,14 @@ const IMAGE_CATALOG = [
   // —— 直播政策 ——
   { file: '6月份政策/直播政策/直播政策-01.jpg', tags: ['活动', '直播', '直播优惠', '直播价'], desc: '直播专属优惠政策' },
 ];
-// 完整系统提示词 = 人设+知识库+可用图片清单（模型用 [[图:标签]] 主动发图）
+// 动态构建完整系统提示词 = 人设 + RAG检索知识库 + 可用图片清单
 // 展示给 LLM 的标签用 tags[1]（具体标签），跳过 tags[0]（内部分类前缀）
-const SYSTEM_PROMPT = SYSTEM_BASE + '\n\n# 可用图片清单\n' +
+const IMAGE_LIST = '\n\n# 可用图片清单\n' +
   IMAGE_CATALOG.map(c => `- [[图:${c.tags[1]}]] ${c.desc}`).join('\n');
+
+function buildFullSystemPrompt(userMessage) {
+  return buildSystemPrompt(userMessage) + IMAGE_LIST;
+}
 
 function imageSegment(entry) {
   return `![${entry.desc}](/assets/${encodeURI(entry.file.replace(/\\/g, '/'))})`;
@@ -345,14 +411,14 @@ function demoReply(userText) {
 }
 
 // ---------- DeepSeek API 模式（OpenAI 兼容格式） ----------
-async function deepseekReply(messages) {
+async function deepseekReply(messages, systemPrompt) {
   const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'authorization': `Bearer ${DEEPSEEK_API_KEY}` },
     body: JSON.stringify({
       model: DEEPSEEK_MODEL,
       max_tokens: 1024,
-      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages.map(m => ({ role: m.role, content: m.content }))],
+      messages: [{ role: 'system', content: systemPrompt }, ...messages.map(m => ({ role: m.role, content: m.content }))],
     }),
   });
   if (!res.ok) throw new Error(`DeepSeek API ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -361,12 +427,12 @@ async function deepseekReply(messages) {
 }
 
 // ---------- Claude API 模式 ----------
-async function claudeReply(messages) {
+async function claudeReply(messages, systemPrompt) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: MODEL, max_tokens: 1024, system: SYSTEM_PROMPT,
+      model: MODEL, max_tokens: 1024, system: systemPrompt,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
     }),
   });
@@ -410,7 +476,10 @@ const server = http.createServer(async (req, res) => {
         const lastUser = messages[messages.length - 1].content || '';
         let segments;
         if (PROVIDER === 'deepseek' || PROVIDER === 'claude') {
-          const raw = PROVIDER === 'deepseek' ? await deepseekReply(messages.slice(-20)) : await claudeReply(messages.slice(-20));
+          const sysPrompt = buildFullSystemPrompt(lastUser);
+          const raw = PROVIDER === 'deepseek'
+            ? await deepseekReply(messages.slice(-20), sysPrompt)
+            : await claudeReply(messages.slice(-20), sysPrompt);
           // 大模型自主决定发图：解析 [[图:标签]] 标记
           segments = expandImageMarkers(smartSplit(raw));
         } else {
