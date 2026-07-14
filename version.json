@@ -1,6 +1,6 @@
 {
-  "version": "1.6",
-  "build": 25,
+  "version": "1.7",
+  "build": 26,
   "date": "2026-07-14",
-  "note": "图片质量提升 Q98 + 医生卡2800px/产品2400px"
+  "note": "修复渐进式JPEG编码损坏导致图片显示问号，改用baseline编码"
 }
