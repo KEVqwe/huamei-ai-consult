@@ -206,8 +206,8 @@ function thinkDelay(text) {
 // 极简 Markdown 渲染（粗体 / 表格 / 标题 / 图片）
 function md(text) {
   if (!text) return '';
-  // 兜底：剔除服务端未处理的 [[图:标签]] 残留标记
-  text = text.replace(/\[\[\s*图\s*[:：]\s*[^\]]+?\s*\]\]/g, '');
+  // 兜底：剔除服务端未处理的 [图:标签] 或 [[图:标签]] 残留标记
+  text = text.replace(/\[{1,2}\s*图\s*[:：]\s*[^\]]+?\s*\]{1,2}/g, '');
   // 真人不空行：合并连续换行，最多保留一个换行
   text = text.replace(/\n{2,}/g, '\n');
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

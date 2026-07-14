@@ -240,8 +240,8 @@ function smartSplit(raw) {
 function expandImageMarkers(segments) {
   const out = [];
   let count = 0;
-  // 宽松匹配：允许 [[ 图:标签 ]] / [[图：标签]] / [[ 图 : 标签 ]] 等变体
-  const RE = /\[\[\s*图\s*[:：]\s*([^\]]+?)\s*\]\]/g;
+  // 宽松匹配：允许 [[图:标签]] / [图:标签] / [[图：标签]] 等变体
+  const RE = /\[{1,2}\s*图\s*[:：]\s*([^\]]+?)\s*\]{1,2}/g;
   for (let seg of segments) {
     const labels = [];
     seg = seg.replace(RE, (_, label) => { labels.push(label.trim()); return ''; }).trim();
