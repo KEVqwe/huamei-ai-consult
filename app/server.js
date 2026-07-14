@@ -513,17 +513,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 缩略图（优先，缓存1天）
-  if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname.startsWith('/thumb/')) {
-    const rel = decodeURIComponent(url.pathname.slice('/thumb/'.length));
-    const fp = path.join(ROOT, '..', 'assets', 'thumb', path.normalize(rel));
-    if (fp.startsWith(path.join(ROOT, '..', 'assets', 'thumb')) && fs.existsSync(fp) && fs.statSync(fp).isFile()) {
-      return serveFile(req, res, fp, 2592000);  // 30天 CDN缓存
-    }
-    res.writeHead(404); return res.end('Not Found');
-  }
-
-  // 素材图片（assets压缩版优先，素材原图兜底；缓存30天）
+  // 素材图片（assets压缩版，CDN缓存30天）
   if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname.startsWith('/assets/')) {
     const rel = decodeURIComponent(url.pathname.slice('/assets/'.length));
     const fp = resolveAsset(rel);

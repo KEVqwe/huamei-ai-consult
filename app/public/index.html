@@ -212,7 +212,7 @@ function md(text) {
   text = text.replace(/\n{2,}/g, '\n');
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const inline = s => esc(s)
-    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false" data-full="$2" onerror="this.src=this.dataset.full">')
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false">')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   const lines = text.split('\n');
   let html = '', tbl = [];
@@ -235,40 +235,6 @@ function md(text) {
   flushTbl();
   return html.replace(/\n$/,'');
 }
-
-// LQIP: 图片先用缩略图瞬间显示，后台加载高清图替换（修复页面切换后图片丢失）
-function upgradeImages(root) {
-  root.querySelectorAll('img[data-full]').forEach(img => {
-    const full = img.dataset.full;
-    if (!full || img.dataset.upgraded) return;
-    img.dataset.upgraded = '1';
-    const thumb = full.replace('/assets/', '/thumb/');
-    // 直接用 fetch 拉高清图，加载完替换src（比 new Image() 更可靠）
-    img.src = thumb;
-    img.style.filter = 'blur(10px)';
-    fetch(full).then(r => r.blob()).then(blob => {
-      const url = URL.createObjectURL(blob);
-      img.src = url;
-      img.style.filter = 'blur(0)';
-      // 释放 blob URL
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    }).catch(() => {
-      // fetch 失败则直接用原图 src（浏览器会从缓存加载）
-      img.src = full;
-      img.style.filter = 'blur(0)';
-    });
-  });
-}
-
-// 页面从后台恢复时重新触发图片升级
-window.addEventListener('pageshow', () => {
-  document.querySelectorAll('img[data-full][data-upgraded]').forEach(img => {
-    if (!img.complete || img.naturalWidth === 0) {
-      delete img.dataset.upgraded;
-      upgradeImages(img.closest('.bubble') || document);
-    }
-  });
-});
 
 function viewImg(src) {
   document.getElementById('viewerImg').src = src;
@@ -340,7 +306,6 @@ async function showSegments(segments) {
     await sleep(typingDelay(seg));
     b.innerHTML = md(seg);
     if (isImg) b.classList.add('img-only');
-    upgradeImages(b);
     chat.scrollTop = chat.scrollHeight;
     await sleep(500 + Math.random() * 700); // 条与条之间的自然间隔（0.5x）
   }
