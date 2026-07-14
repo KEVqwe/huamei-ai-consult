@@ -1,6 +1,6 @@
 {
-  "version": "1.8",
-  "build": 27,
+  "version": "1.9",
+  "build": 28,
   "date": "2026-07-14",
-  "note": "LQIP缩略图方案：16KB瞬间加载→后台替换29MB高清图"
+  "note": "修复LQIP: fetch替代new Image + pageshow恢复, 解决手机锁屏后图片变?"
 }

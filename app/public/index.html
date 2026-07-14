@@ -236,24 +236,39 @@ function md(text) {
   return html.replace(/\n$/,'');
 }
 
-// LQIP: 图片先用缩略图瞬间显示，后台加载高清图替换
+// LQIP: 图片先用缩略图瞬间显示，后台加载高清图替换（修复页面切换后图片丢失）
 function upgradeImages(root) {
   root.querySelectorAll('img[data-full]').forEach(img => {
     const full = img.dataset.full;
     if (!full || img.dataset.upgraded) return;
     img.dataset.upgraded = '1';
     const thumb = full.replace('/assets/', '/thumb/');
+    // 直接用 fetch 拉高清图，加载完替换src（比 new Image() 更可靠）
     img.src = thumb;
     img.style.filter = 'blur(10px)';
-    img.style.transition = 'filter 0.3s';
-    const hi = new Image();
-    hi.onload = () => {
+    fetch(full).then(r => r.blob()).then(blob => {
+      const url = URL.createObjectURL(blob);
+      img.src = url;
+      img.style.filter = 'blur(0)';
+      // 释放 blob URL
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }).catch(() => {
+      // fetch 失败则直接用原图 src（浏览器会从缓存加载）
       img.src = full;
       img.style.filter = 'blur(0)';
-    };
-    hi.src = full;
+    });
   });
 }
+
+// 页面从后台恢复时重新触发图片升级
+window.addEventListener('pageshow', () => {
+  document.querySelectorAll('img[data-full][data-upgraded]').forEach(img => {
+    if (!img.complete || img.naturalWidth === 0) {
+      delete img.dataset.upgraded;
+      upgradeImages(img.closest('.bubble') || document);
+    }
+  });
+});
 
 function viewImg(src) {
   document.getElementById('viewerImg').src = src;
