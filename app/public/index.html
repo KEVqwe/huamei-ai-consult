@@ -341,6 +341,7 @@ async function send(text) {
       }
     }
     const data = await res.json();
+    if (data.error === 'rate_limited') throw new Error('rate_limited');
     if (data.error === 'access_code_required') throw new Error('访问口令不正确');
     if (data.error) throw new Error(data.error);
     return data;
@@ -359,7 +360,9 @@ async function send(text) {
     await showSegments(segs);
     history.push({ role: 'assistant', content: data.reply });
   } catch (e) {
-    b.innerHTML = '哎呀网络有点卡，您再发一次试试～';
+    b.innerHTML = e.message === 'rate_limited'
+      ? '您发得有点快啦，稍等几秒再发哈～'
+      : '哎呀网络有点卡，您再发一次试试～';
     console.error(e);
   }
   sendBtn.disabled = false;

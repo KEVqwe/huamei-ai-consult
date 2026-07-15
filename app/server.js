@@ -31,8 +31,37 @@ const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek
 const API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
 const PROVIDER = DEEPSEEK_API_KEY ? 'deepseek' : API_KEY ? 'claude' : 'local';
+
+// ---------- 生成参数调优（拟人化：提高多样性、压制重复口头禅） ----------
+// temperature 1.25：DeepSeek官方闲聊推荐区间1.2~1.3，句式更活不僵硬
+// frequency_penalty 0.5：多轮后不再反复说"价格以到院面诊为准哈"这类口头禅
+// presence_penalty 0.3：鼓励换角度组织语言
+const GEN_TEMPERATURE = Number(process.env.GEN_TEMPERATURE ?? 1.25);
+const GEN_FREQ_PENALTY = Number(process.env.GEN_FREQ_PENALTY ?? 0.5);
+const GEN_PRES_PENALTY = Number(process.env.GEN_PRES_PENALTY ?? 0.3);
+const GEN_MAX_TOKENS = Number(process.env.GEN_MAX_TOKENS ?? 1024);
 // 访问口令（公网部署时设置，防止接口被刷；不设置则不校验）
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
+
+// ---------- IP限流（防刷/高并发保护）：每IP每分钟最多N次对话请求，设0关闭 ----------
+const RATE_LIMIT_PER_MIN = Number(process.env.RATE_LIMIT_PER_MIN ?? 20);
+const rateBuckets = new Map(); // ip -> 时间戳数组
+setInterval(() => { // 定期清理过期桶，防内存无限增长
+  const cutoff = Date.now() - 60000;
+  for (const [ip, arr] of rateBuckets) {
+    const live = arr.filter(t => t > cutoff);
+    if (live.length) rateBuckets.set(ip, live); else rateBuckets.delete(ip);
+  }
+}, 600000).unref();
+function isRateLimited(ip) {
+  if (!RATE_LIMIT_PER_MIN) return false;
+  const now = Date.now();
+  const arr = (rateBuckets.get(ip) || []).filter(t => now - t < 60000);
+  if (arr.length >= RATE_LIMIT_PER_MIN) { rateBuckets.set(ip, arr); return true; }
+  arr.push(now);
+  rateBuckets.set(ip, arr);
+  return false;
+}
 
 // 图片URL版本号（CDN缓存击穿）：/assets 走30天immutable缓存，
 // 文件内容更新时必须换URL，否则CDN持续吐旧文件（曾导致医生图显示为旧的损坏版本/模糊缩略图）
@@ -204,8 +233,44 @@ const IMAGE_CATALOG = [
 const IMAGE_LIST = '\n\n# 可用图片清单\n' +
   IMAGE_CATALOG.map(c => `- [[图:${c.tags[1]}]] ${c.desc}`).join('\n');
 
-function buildFullSystemPrompt(userMessage) {
-  return buildSystemPrompt(userMessage) + IMAGE_LIST;
+// ---------- 会话客户画像（对话记忆层） ----------
+// 前端每次请求携带完整历史，但送给模型的只有最近20条——早期提到的预算/顾虑/身体情况会滑出窗口。
+// 此处从全量历史无状态提取画像+早期消息提要注入提示词，保持记忆连贯（无需服务端存储，天然支持并发）。
+function buildProfile(messages) {
+  const userMsgs = messages.filter(m => m.role === 'user').map(m => String(m.content || ''));
+  if (!userMsgs.length) return '';
+  const all = userMsgs.join(' ');
+  const lines = [];
+
+  const topics = [...new Set(INTENTS.flatMap(i => i.kw).filter(k => all.includes(k)))].slice(0, 10);
+  if (topics.length) lines.push(`- 关注过的项目/话题：${topics.join('、')}`);
+
+  const budget = all.match(/预算[^，。！？\s]{0,10}|[0-9一二两三四五六七八九十]+[万千][以内左右上下不到之]{0,2}/g);
+  if (budget) lines.push(`- 提及预算：${[...new Set(budget)].slice(0, 3).join('、')}`);
+
+  const fears = ['怕疼', '怕痛', '怕留疤', '怕假', '怕失败', '恢复期', '安全', '副作用', '后遗症', '纠结', '犹豫'].filter(k => all.includes(k));
+  if (fears.length) lines.push(`- 顾虑：${fears.join('、')}（回复时注意先共情）`);
+
+  const status = ['怀孕', '孕期', '哺乳', '未成年', '高血压', '糖尿病', '心脏病', '疤痕体质', '过敏', '敏感肌'].filter(k => all.includes(k));
+  if (status.length) lines.push(`- 特殊情况：${status.join('、')}（注意合规红线）`);
+
+  const phone = all.match(/1[3-9]\d{9}/);
+  if (phone) lines.push(`- 已留联系方式：${phone[0]}（已留资，不要再重复索要电话）`);
+
+  const WINDOW = 20;
+  if (messages.length > WINDOW) {
+    const earlier = messages.slice(0, messages.length - WINDOW)
+      .filter(m => m.role === 'user')
+      .map(m => String(m.content || '').slice(0, 40));
+    if (earlier.length) lines.push(`- 早期消息提要（已滑出上下文，勿遗忘）：${earlier.slice(-12).join(' / ')}`);
+  }
+
+  if (!lines.length) return '';
+  return '\n\n# 本次会话客户画像（系统自动提取，用于保持记忆连贯；不要向客户复述本段内容）\n' + lines.join('\n');
+}
+
+function buildFullSystemPrompt(userMessage, messages = []) {
+  return buildSystemPrompt(userMessage) + buildProfile(messages) + IMAGE_LIST;
 }
 
 function imageSegment(entry) {
@@ -450,7 +515,10 @@ async function deepseekReply(messages, systemPrompt) {
     headers: { 'content-type': 'application/json', 'authorization': `Bearer ${DEEPSEEK_API_KEY}` },
     body: JSON.stringify({
       model: DEEPSEEK_MODEL,
-      max_tokens: 1024,
+      max_tokens: GEN_MAX_TOKENS,
+      temperature: GEN_TEMPERATURE,
+      frequency_penalty: GEN_FREQ_PENALTY,
+      presence_penalty: GEN_PRES_PENALTY,
       messages: [{ role: 'system', content: systemPrompt }, ...messages.map(m => ({ role: m.role, content: m.content }))],
     }),
   });
@@ -465,7 +533,8 @@ async function claudeReply(messages, systemPrompt) {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: MODEL, max_tokens: 1024, system: systemPrompt,
+      model: MODEL, max_tokens: GEN_MAX_TOKENS, system: systemPrompt,
+      temperature: Math.min(1, GEN_TEMPERATURE), // Claude温度上限1.0，不支持频率/存在惩罚
       messages: messages.map(m => ({ role: m.role, content: m.content })),
     }),
   });
@@ -499,6 +568,11 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (req.method === 'POST' && url.pathname === '/api/chat') {
+    const clientIp = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+    if (isRateLimited(clientIp)) {
+      res.writeHead(429, { 'content-type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify({ error: 'rate_limited' }));
+    }
     if (ACCESS_CODE && req.headers['x-access-code'] !== ACCESS_CODE) {
       res.writeHead(401, { 'content-type': 'application/json; charset=utf-8' });
       return res.end(JSON.stringify({ error: 'access_code_required' }));
@@ -516,7 +590,7 @@ const server = http.createServer(async (req, res) => {
           .map(m => m.content).join(' ');
         let segments;
         if (PROVIDER === 'deepseek' || PROVIDER === 'claude') {
-          const sysPrompt = buildFullSystemPrompt(retrievalQuery);
+          const sysPrompt = buildFullSystemPrompt(retrievalQuery, messages);
           const raw = PROVIDER === 'deepseek'
             ? await deepseekReply(messages.slice(-20), sysPrompt)
             : await claudeReply(messages.slice(-20), sysPrompt);
