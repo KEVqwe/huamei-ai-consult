@@ -1,7 +1,7 @@
-# Cloudflare / Zeabur 静态资源缓存
+# 浏览器短期(1h) + CDN长期共享(30d)
 /assets/*
-  Cache-Control: public, max-age=2592000, immutable
+  Cache-Control: public, max-age=3600, s-maxage=2592000
+  CDN-Cache-Control: max-age=2592000
 
 /*.webp
-  Cache-Control: public, max-age=2592000, immutable
-  Content-Type: image/webp
+  Cache-Control: public, max-age=3600, s-maxage=2592000

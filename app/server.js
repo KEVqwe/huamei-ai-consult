@@ -546,7 +546,8 @@ function serveFile(req, res, fp, cacheSeconds = 0) {
     'content-length': fs.statSync(fp).size,
   };
   if (cacheSeconds > 0) {
-    headers['cache-control'] = `public, max-age=${cacheSeconds}, immutable`;
+    // 浏览器短期(1h), CDN共享长期(30d)
+    headers['cache-control'] = `public, max-age=3600, s-maxage=2592000`;
     headers['etag'] = `"${fs.statSync(fp).mtimeMs.toString(36)}"`;
   }
   res.writeHead(200, headers);
