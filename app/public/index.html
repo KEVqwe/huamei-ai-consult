@@ -277,39 +277,78 @@ function addSysMsg(text) {
   return row;
 }
 
+// 找图话术随机池
+const IMAGE_HINTS = [
+  '稍等下，我找下图片哈',
+  '等等哦，我翻一下图',
+  '找一下，发您看看',
+  '稍等，我找找哈',
+  '我翻翻手机，给您找一张',
+];
+
+// 逐字显示（流式打字动画），每字符间隔约50-100ms
+async function streamType(element, text) {
+  let html = '';
+  for (let i = 0; i < text.length; i++) {
+    html += text[i];
+    element.innerHTML = md(html);
+    chat.scrollTop = chat.scrollHeight;
+    // 中文字符间隔长，英文/标点短
+    const ch = text[i];
+    const delay = /[一-鿿]/.test(ch) ? 70 + Math.random() * 40 : 30 + Math.random() * 20;
+    await sleep(delay);
+  }
+}
+
+// 当前对话的中断控制器
+let currentAbort = null;
+
 // 像真人一样：逐条显示，打字时长≈真人手速（约7字/秒，0.5倍速），发图/表格像发文件一样快
 const subStatus = document.getElementById('subStatus');
 function typingDelay(seg) {
   const isImg = /^!\[.*\]\(.*\)$/.test(seg.trim());
-  if (isImg) return 2400 + Math.random() * 1200;             // 挑图、发送
-  if (/^\s*\|.*\|/m.test(seg)) return 3000 + Math.random() * 1400; // 发价目表≈转发文件
+  if (isImg) return 2400 + Math.random() * 1200;
+  if (/^\s*\|.*\|/m.test(seg)) return 3000 + Math.random() * 1400;
   const textLen = seg.replace(/[\s*#|]/g, '').length;
-  const base = 1600 + textLen * 140;                          // ≈每秒7个字（0.5x）
-  return Math.min(base, 12000) * (0.85 + Math.random() * 0.3); // ±15%波动
+  const base = 1600 + textLen * 140;
+  return Math.min(base, 12000) * (0.85 + Math.random() * 0.3);
 }
-async function showSegments(segments) {
+async function showSegments(segments, signal) {
   subStatus.textContent = '正在输入…';
   let imageHintShown = false;
   for (let i = 0; i < segments.length; i++) {
+    if (signal && signal.aborted) return;  // 用户打断
     const seg = segments[i];
     const isImg = /^!\[.*\]\(.*\)$/.test(seg.trim());
+    const isTable = /^\s*\|.*\|/m.test(seg);
 
-    // 第一张图片前：模拟"找图"停顿（前面有文字消息时才提示）
+    // 第一张图片前：模拟"找图"停顿 + 随机话术
     if (isImg && !imageHintShown && i > 0) {
       imageHintShown = true;
       const { b: hintB } = addMsg('bot', '', true);
       await sleep(3000 + Math.random() * 3000);
-      hintB.innerHTML = '稍等下，我找下图片哈';
+      if (signal && signal.aborted) return;
+      hintB.innerHTML = IMAGE_HINTS[Math.floor(Math.random() * IMAGE_HINTS.length)];
       chat.scrollTop = chat.scrollHeight;
       await sleep(1000 + Math.random() * 800);
     }
 
+    if (signal && signal.aborted) return;
+
     const { b } = addMsg('bot', '', true);
     await sleep(typingDelay(seg));
-    b.innerHTML = md(seg);
+    if (signal && signal.aborted) return;
+
+    // 流式逐字显示（表格和大图一次性显示，避免逐字闪烁）
+    if (isImg || isTable) {
+      b.innerHTML = md(seg);
+    } else {
+      await streamType(b, seg);
+    }
     if (isImg) b.classList.add('img-only');
     chat.scrollTop = chat.scrollHeight;
-    await sleep(500 + Math.random() * 700); // 条与条之间的自然间隔（0.5x）
+    if (signal && signal.aborted) return;
+    await sleep(500 + Math.random() * 700);
   }
   subStatus.textContent = '在线';
 }
@@ -319,6 +358,12 @@ async function send(text) {
   if (!text) return;
   input.value = '';
   sendBtn.disabled = true;
+
+  // 打断当前正在进行的回复
+  if (currentAbort) { currentAbort.abort(); }
+  const abort = new AbortController();
+  currentAbort = abort;
+
   addMsg('user', text);
   history.push({ role: 'user', content: text });
 
@@ -357,14 +402,18 @@ async function send(text) {
     const data = await apiPromise;
     row.remove();
     const segs = data.segments && data.segments.length ? data.segments : [data.reply];
-    await showSegments(segs);
+    await showSegments(segs, abort.signal);
     history.push({ role: 'assistant', content: data.reply });
   } catch (e) {
-    b.innerHTML = e.message === 'rate_limited'
-      ? '您发得有点快啦，稍等几秒再发哈～'
-      : '哎呀网络有点卡，您再发一次试试～';
-    console.error(e);
+    if (e.name === 'AbortError') { /* 用户打断，静默处理 */ }
+    else {
+      b.innerHTML = e.message === 'rate_limited'
+        ? '您发得有点快啦，稍等几秒再发哈～'
+        : '哎呀网络有点卡，您再发一次试试～';
+      console.error(e);
+    }
   }
+  if (currentAbort === abort) currentAbort = null;
   sendBtn.disabled = false;
   chat.scrollTop = chat.scrollHeight;
   input.focus();
