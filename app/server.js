@@ -262,8 +262,8 @@ function buildFullSystemPrompt(userMessage, messages = []) {
 }
 
 function imageSegment(entry) {
-  const suffix = ASSET_VER ? '?' + ASSET_VER : '';
-  return `![${entry.desc}](/assets/${encodeURI(entry.file.replace(/\\/g, '/'))}${suffix})`;
+  const webp = entry.file.replace(/\.(jpg|jpeg|png)$/i, '.webp');
+  return `![${entry.desc}](/assets/${encodeURI(webp.replace(/\\/g, '/'))})`;
 }
 
 // 净化模型输出：字面 \n 转真换行、剥掉Markdown转义反斜杠（\[ \* 等）、清除孤立反斜杠
@@ -536,7 +536,7 @@ async function claudeReply(messages, systemPrompt) {
 // ---------- HTTP 服务 ----------
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml',
   '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.gif': 'image/gif',
 };
 
@@ -619,6 +619,17 @@ const server = http.createServer(async (req, res) => {
       needsCode: !!ACCESS_CODE,
     }));
     return;
+  }
+
+  // LQIP 占位图（极小，缓存30天）
+  if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname.startsWith('/lqip/')) {
+    const rel = decodeURIComponent(url.pathname.slice('/lqip/'.length));
+    const fp = path.join(ROOT, '..', 'assets', 'lqip', path.normalize(rel));
+    const safe = path.join(ROOT, '..', 'assets', 'lqip');
+    if (fp.startsWith(safe) && fs.existsSync(fp) && fs.statSync(fp).isFile()) {
+      return serveFile(req, res, fp, 2592000);
+    }
+    res.writeHead(404); return res.end('Not Found');
   }
 
   // 素材图片（assets压缩版，CDN缓存30天）

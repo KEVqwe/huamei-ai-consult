@@ -1,8 +1,14 @@
 {
   "cdn": {
     "enabled": true,
-    "paths": ["/assets/**"],
+    "paths": ["/assets/**", "/lqip/**"],
     "cacheControl": "public, max-age=2592000, immutable"
+  },
+  "server": {
+    "compression": {
+      "brotli": true,
+      "gzip": true
+    }
   },
   "build": {
     "command": "npm install"
