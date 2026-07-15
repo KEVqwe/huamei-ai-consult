@@ -75,9 +75,11 @@
   .row.user .bubble strong { color: #fff; }
   .bubble h4 { margin: 6px 0 2px; font-size: 14px; color: #ad1457; }
   .bubble img {
-    max-width: 100%; border-radius: 10px; margin: 2px 0; cursor: pointer;
+    max-width: 100%; max-height: 70vh; height: auto; width: auto;
+    border-radius: 10px; margin: 2px 0; cursor: pointer;
     display: block; min-height: 60px; background: #faf2f6;
     -webkit-user-drag: none; user-select: none;
+    object-fit: contain;
     pointer-events: auto;
   }
   .bubble.img-only { padding: 4px; background: transparent; box-shadow: none; }
