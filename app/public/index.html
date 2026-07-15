@@ -214,7 +214,7 @@ function md(text) {
   text = text.replace(/\n{2,}/g, '\n');
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const inline = s => esc(s)
-    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" data-full="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false">')
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false">')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   const lines = text.split('\n');
   let html = '', tbl = [];
@@ -239,31 +239,13 @@ function md(text) {
 }
 
 function viewImg(src) {
-  const el = document.getElementById('viewerImg');
-  el.src = src.replace('/lqip/', '/assets/');
+  document.getElementById('viewerImg').src = src;
   document.getElementById('viewer').style.display = 'block';
   document.querySelector('meta[name=viewport]').setAttribute('content','width=device-width,initial-scale=1.0,user-scalable=yes');
 }
 function closeViewer() {
   document.getElementById('viewer').style.display = 'none';
   document.querySelector('meta[name=viewport]').setAttribute('content','width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover');
-}
-
-// LQIP: 先显示 ~1KB 占位图(blur)，后台加载 WebP 高清图
-function upgradeImages(root) {
-  root.querySelectorAll('img[data-full]').forEach(img => {
-    const full = img.dataset.full;
-    if (!full || img.dataset.upgraded) return;
-    img.dataset.upgraded = '1';
-    const lqip = full.replace('/assets/', '/lqip/');
-    img.src = lqip;
-    img.style.filter = 'blur(10px)';
-    img.style.transition = 'filter 0.4s ease';
-    const hi = new Image();
-    hi.onload = () => { img.src = full; img.style.filter = 'blur(0)'; };
-    hi.onerror = () => { img.src = full; img.style.filter = 'blur(0)'; };
-    hi.src = full;
-  });
 }
 
 function addMsg(role, content, isTyping) {
@@ -344,7 +326,7 @@ async function showSegments(segments, signal) {
     if (signal && signal.aborted) return;
 
     b.innerHTML = md(seg);
-    if (isImg) { b.classList.add('img-only'); upgradeImages(b); }
+    if (isImg) b.classList.add('img-only');
     chat.scrollTop = chat.scrollHeight;
     if (signal && signal.aborted) return;
     await sleep(500 + Math.random() * 700);

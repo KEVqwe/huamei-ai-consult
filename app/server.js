@@ -621,18 +621,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // LQIP 占位图（极小，缓存30天）
-  if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname.startsWith('/lqip/')) {
-    const rel = decodeURIComponent(url.pathname.slice('/lqip/'.length));
-    const fp = path.join(ROOT, '..', 'assets', 'lqip', path.normalize(rel));
-    const safe = path.join(ROOT, '..', 'assets', 'lqip');
-    if (fp.startsWith(safe) && fs.existsSync(fp) && fs.statSync(fp).isFile()) {
-      return serveFile(req, res, fp, 2592000);
-    }
-    res.writeHead(404); return res.end('Not Found');
-  }
-
-  // 素材图片（assets压缩版，CDN缓存30天）
+  // 素材图片缓存30天）
   if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname.startsWith('/assets/')) {
     const rel = decodeURIComponent(url.pathname.slice('/assets/'.length));
     const fp = resolveAsset(rel);

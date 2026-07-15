@@ -1,7 +1,7 @@
 {
   "cdn": {
     "enabled": true,
-    "paths": ["/assets/**", "/lqip/**"],
+    "paths": ["/assets/**"],
     "cacheControl": "public, max-age=2592000, immutable"
   },
   "server": {

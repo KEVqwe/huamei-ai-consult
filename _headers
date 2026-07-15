@@ -2,9 +2,6 @@
 /assets/*
   Cache-Control: public, max-age=2592000, immutable
 
-/lqip/*
-  Cache-Control: public, max-age=2592000, immutable
-
 /*.webp
   Cache-Control: public, max-age=2592000, immutable
   Content-Type: image/webp
