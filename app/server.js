@@ -34,6 +34,14 @@ const PROVIDER = DEEPSEEK_API_KEY ? 'deepseek' : API_KEY ? 'claude' : 'local';
 // 访问口令（公网部署时设置，防止接口被刷；不设置则不校验）
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
+// 图片URL版本号（CDN缓存击穿）：/assets 走30天immutable缓存，
+// 文件内容更新时必须换URL，否则CDN持续吐旧文件（曾导致医生图显示为旧的损坏版本/模糊缩略图）
+const VERSION_INFO = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'version.json'), 'utf8')); }
+  catch { return { build: 0 }; }
+})();
+const ASSET_VER = 'v=' + (VERSION_INFO.build || 0);
+
 // ---------- 知识库加载（含元信息解析） ----------
 function parseFrontmatter(text) {
   const m = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
@@ -201,7 +209,7 @@ function buildFullSystemPrompt(userMessage) {
 }
 
 function imageSegment(entry) {
-  return `![${entry.desc}](/assets/${encodeURI(entry.file.replace(/\\/g, '/'))})`;
+  return `![${entry.desc}](/assets/${encodeURI(entry.file.replace(/\\/g, '/'))}?${ASSET_VER})`;
 }
 
 // 净化模型输出：字面 \n 转真换行、剥掉Markdown转义反斜杠（\[ \* 等）、清除孤立反斜杠
@@ -285,7 +293,7 @@ function pickImages(text, max = 2) {
     }
   }
   hits.sort((a, b) => b.n - a.n);
-  return hits.slice(0, max).map(h => ({ ...h.img, url: '/assets/' + encodeURI(h.img.file.replace(/\\/g, '/')) }));
+  return hits.slice(0, max).map(h => ({ ...h.img, url: '/assets/' + encodeURI(h.img.file.replace(/\\/g, '/')) + '?' + ASSET_VER }));
 }
 
 // ---------- 本地检索模式 ----------
