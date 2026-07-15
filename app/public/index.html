@@ -214,7 +214,7 @@ function md(text) {
   text = text.replace(/\n{2,}/g, '\n');
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const inline = s => esc(s)
-    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false">')
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false" onerror="console.warn('IMG FAILED:',this.src);this.style.border='2px solid red'">')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   const lines = text.split('\n');
   let html = '', tbl = [];
