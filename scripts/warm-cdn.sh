@@ -6,6 +6,11 @@
 #
 # ⚠️ 必须在 Zeabur 部署完新版本之后再跑（否则暖的是旧图/旧缓存）。
 #
+# 用法:
+#   暖 Zeabur CDN：  bash scripts/warm-cdn.sh https://xxx.zeabur.app
+#   暖 jsDelivr CDN： bash scripts/warm-cdn.sh https://cdn.jsdelivr.net/gh/KEVqwe/huamei-ai-consult@main
+#                    （jsDelivr 首次访问自动缓存，预热非必需但可加速国内首访）
+#
 # 用法: bash scripts/warm-cdn.sh <你的线上域名>
 # 例:   bash scripts/warm-cdn.sh https://xxx.zeabur.app
 

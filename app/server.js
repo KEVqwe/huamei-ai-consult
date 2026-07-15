@@ -72,6 +72,18 @@ const VERSION_INFO = (() => {
 })();
 const ASSET_VER = 'v=' + (VERSION_INFO.build || 0);
 
+// ---------- 图片 CDN 加速 ----------
+// 设置 CDN_BASE_URL 后，对话配图走外部开源 CDN（jsDelivr / Statically 等）
+// 不设置则走本地 /assets/ 路由（开发模式 / Zeabur 自建 CDN）
+// 示例：CDN_BASE_URL=https://cdn.jsdelivr.net/gh/KEVqwe/huamei-ai-consult@main
+// 备用：CDN_BASE_URL=https://cdn.statically.io/gh/KEVqwe/huamei-ai-consult/main
+const CDN_BASE_URL = (process.env.CDN_BASE_URL || '').replace(/\/+$/, '');
+function assetUrl(relPath) {
+  const encoded = '/assets/' + encodeURI(String(relPath).replace(/\\/g, '/'));
+  const suffix = ASSET_VER ? '?' + ASSET_VER : '';
+  return (CDN_BASE_URL || '') + encoded + suffix;
+}
+
 // ---------- 知识库加载（含元信息解析） ----------
 function parseFrontmatter(text) {
   const m = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
@@ -263,8 +275,7 @@ function buildFullSystemPrompt(userMessage, messages = []) {
 
 function imageSegment(entry) {
   const webp = entry.file.replace(/\.(jpg|jpeg|png)$/i, '.webp');
-  const suffix = ASSET_VER ? '?' + ASSET_VER : '';
-  return `![${entry.desc}](/assets/${encodeURI(webp.replace(/\\/g, '/'))}${suffix})`;
+  return `![${entry.desc}](${assetUrl(webp)})`;
 }
 
 // 净化模型输出：字面 \n 转真换行、剥掉Markdown转义反斜杠（\[ \* 等）、清除孤立反斜杠
@@ -348,8 +359,7 @@ function pickImages(text, max = 2) {
     }
   }
   hits.sort((a, b) => b.n - a.n);
-  const suffix = ASSET_VER ? '?' + ASSET_VER : '';
-  return hits.slice(0, max).map(h => ({ ...h.img, url: '/assets/' + encodeURI(h.img.file.replace(/\\/g, '/')) + suffix }));
+  return hits.slice(0, max).map(h => ({ ...h.img, url: assetUrl(h.img.file) }));
 }
 
 // ---------- 本地检索模式 ----------

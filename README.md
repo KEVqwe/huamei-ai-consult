@@ -73,9 +73,13 @@ temperature 1.25（DeepSeek 官方闲聊推荐区间 1.2~1.3）、frequency_pena
 - 孕哺/未成年劝缓；"以到院面诊为准"
 - 输出净化：剥离 Markdown 转义、修复穿帮注释外发
 
-### 5. 图片与部署
-- assets Q85 压缩（原素材 174MB → 29MB）
-- Zeabur CDN 30 天缓存 + immutable + ETag
+### 5. 图片 CDN 加速
+- 对话配图默认走服务端 `/assets/` 路由 + Zeabur CDN 30 天缓存
+- 可选：设置 `CDN_BASE_URL` 环境变量，图片改为走外部开源 CDN（jsDelivr / Statically），直接从 GitHub 边缘节点加载，进一步减轻服务端带宽
+  - jsDelivr：`https://cdn.jsdelivr.net/gh/KEVqwe/huamei-ai-consult@main`
+  - Statically（备用）：`https://cdn.statically.io/gh/KEVqwe/huamei-ai-consult/main`
+- 不设此变量则完全向后兼容，图片仍走本地路由
+- 图片 URL 带 `?v=<build>` 版本号，更新 `version.json` 的 build 字段即可刷新 CDN 缓存
 - 本地开发自动回退素材原图
 - IP 限流 20 次/分钟（可调）
 
