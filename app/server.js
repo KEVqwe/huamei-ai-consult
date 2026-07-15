@@ -69,7 +69,8 @@ const VERSION_INFO = (() => {
   try { return JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'version.json'), 'utf8')); }
   catch { return { build: 0 }; }
 })();
-const ASSET_VER = 'v=' + (VERSION_INFO.build || 0);
+// CDN immutable + ETag 已足够，查询参数可能影响部分CDN/Browser二次加载
+const ASSET_VER = '';
 
 // ---------- 知识库加载（含元信息解析） ----------
 function parseFrontmatter(text) {
@@ -274,7 +275,8 @@ function buildFullSystemPrompt(userMessage, messages = []) {
 }
 
 function imageSegment(entry) {
-  return `![${entry.desc}](/assets/${encodeURI(entry.file.replace(/\\/g, '/'))}?${ASSET_VER})`;
+  const suffix = ASSET_VER ? '?' + ASSET_VER : '';
+  return `![${entry.desc}](/assets/${encodeURI(entry.file.replace(/\\/g, '/'))}${suffix})`;
 }
 
 // 净化模型输出：字面 \n 转真换行、剥掉Markdown转义反斜杠（\[ \* 等）、清除孤立反斜杠
@@ -358,7 +360,8 @@ function pickImages(text, max = 2) {
     }
   }
   hits.sort((a, b) => b.n - a.n);
-  return hits.slice(0, max).map(h => ({ ...h.img, url: '/assets/' + encodeURI(h.img.file.replace(/\\/g, '/')) + '?' + ASSET_VER }));
+  const suffix = ASSET_VER ? '?' + ASSET_VER : '';
+  return hits.slice(0, max).map(h => ({ ...h.img, url: '/assets/' + encodeURI(h.img.file.replace(/\\/g, '/')) + suffix }));
 }
 
 // ---------- 本地检索模式 ----------

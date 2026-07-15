@@ -277,7 +277,7 @@ function addSysMsg(text) {
   return row;
 }
 
-// 找图话术随机池
+// 找图话术随机池（整个对话只出现一次）
 const IMAGE_HINTS = [
   '稍等下，我找下图片哈',
   '等等哦，我翻一下图',
@@ -285,20 +285,7 @@ const IMAGE_HINTS = [
   '稍等，我找找哈',
   '我翻翻手机，给您找一张',
 ];
-
-// 逐字显示（流式打字动画），每字符间隔约50-100ms
-async function streamType(element, text) {
-  let html = '';
-  for (let i = 0; i < text.length; i++) {
-    html += text[i];
-    element.innerHTML = md(html);
-    chat.scrollTop = chat.scrollHeight;
-    // 中文字符间隔长，英文/标点短
-    const ch = text[i];
-    const delay = /[一-鿿]/.test(ch) ? 70 + Math.random() * 40 : 30 + Math.random() * 20;
-    await sleep(delay);
-  }
-}
+let imageHintUsed = false;  // 全局标记，一次对话只提示一次
 
 // 当前对话的中断控制器
 let currentAbort = null;
@@ -315,16 +302,17 @@ function typingDelay(seg) {
 }
 async function showSegments(segments, signal) {
   subStatus.textContent = '正在输入…';
-  let imageHintShown = false;
+  let imageHintShown = imageHintUsed;  // 继承全局状态
   for (let i = 0; i < segments.length; i++) {
     if (signal && signal.aborted) return;  // 用户打断
     const seg = segments[i];
     const isImg = /^!\[.*\]\(.*\)$/.test(seg.trim());
     const isTable = /^\s*\|.*\|/m.test(seg);
 
-    // 第一张图片前：模拟"找图"停顿 + 随机话术
+    // 全对话第一张图片前：模拟"找图"停顿 + 随机话术（之后不再说）
     if (isImg && !imageHintShown && i > 0) {
       imageHintShown = true;
+      imageHintUsed = true;
       const { b: hintB } = addMsg('bot', '', true);
       await sleep(3000 + Math.random() * 3000);
       if (signal && signal.aborted) return;
@@ -339,12 +327,7 @@ async function showSegments(segments, signal) {
     await sleep(typingDelay(seg));
     if (signal && signal.aborted) return;
 
-    // 流式逐字显示（表格和大图一次性显示，避免逐字闪烁）
-    if (isImg || isTable) {
-      b.innerHTML = md(seg);
-    } else {
-      await streamType(b, seg);
-    }
+    b.innerHTML = md(seg);
     if (isImg) b.classList.add('img-only');
     chat.scrollTop = chat.scrollHeight;
     if (signal && signal.aborted) return;
