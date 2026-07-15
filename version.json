@@ -1,6 +1,6 @@
 {
-  "version": "1.17",
-  "build": 35,
-  "date": "2026-07-14",
-  "note": "四层补齐：生成参数调优(温度/惩罚) + 共情指令 + 客户画像记忆 + IP限流"
+  "version": "1.18",
+  "build": 36,
+  "date": "2026-07-15",
+  "note": "根治第二张图问号：关闭CDN对webp的Brotli压缩(content-length错位污染keep-alive) + 图URL恢复?v=build绕开坏缓存"
 }

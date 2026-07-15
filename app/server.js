@@ -63,14 +63,14 @@ function isRateLimited(ip) {
   return false;
 }
 
-// 图片URL版本号（CDN缓存击穿）：/assets 走30天immutable缓存，
-// 文件内容更新时必须换URL，否则CDN持续吐旧文件（曾导致医生图显示为旧的损坏版本/模糊缩略图）
+// 图片URL版本号（CDN缓存击穿）：图片URL带 ?v=build，
+// 作用①：内容更新后换URL，绕开CDN旧缓存（否则重压的图刷不新）
+// 作用②：绕开当前CDN里那批被Brotli压坏的旧缓存副本（关闭压缩后需换key才能重新拉取干净版本）
 const VERSION_INFO = (() => {
   try { return JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'version.json'), 'utf8')); }
   catch { return { build: 0 }; }
 })();
-// CDN immutable + ETag 已足够，查询参数可能影响部分CDN/Browser二次加载
-const ASSET_VER = '';
+const ASSET_VER = 'v=' + (VERSION_INFO.build || 0);
 
 // ---------- 知识库加载（含元信息解析） ----------
 function parseFrontmatter(text) {
@@ -263,7 +263,8 @@ function buildFullSystemPrompt(userMessage, messages = []) {
 
 function imageSegment(entry) {
   const webp = entry.file.replace(/\.(jpg|jpeg|png)$/i, '.webp');
-  return `![${entry.desc}](/assets/${encodeURI(webp.replace(/\\/g, '/'))})`;
+  const suffix = ASSET_VER ? '?' + ASSET_VER : '';
+  return `![${entry.desc}](/assets/${encodeURI(webp.replace(/\\/g, '/'))}${suffix})`;
 }
 
 // 净化模型输出：字面 \n 转真换行、剥掉Markdown转义反斜杠（\[ \* 等）、清除孤立反斜杠
