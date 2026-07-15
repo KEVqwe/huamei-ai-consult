@@ -84,6 +84,17 @@ function assetUrl(relPath) {
   return (CDN_BASE_URL || '') + encoded + suffix;
 }
 
+// 剥离消息中的 CDN 图片 Markdown，防止模型学到 CDN URL 格式后自行编造文件路径
+// （模型一旦在对话历史中看到完整 CDN URL，下次可能绕过 [[图:标签]] 直接编造不存在的文件名）
+function stripCdnImages(text) {
+  if (!CDN_BASE_URL || !text) return text || '';
+  const esc = CDN_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(text).replace(
+    new RegExp(`!\\[[^\\]]*\\]\\(${esc}/assets/[^)]+\\)`, 'g'),
+    '[已发图]'
+  );
+}
+
 // ---------- 知识库加载（含元信息解析） ----------
 function parseFrontmatter(text) {
   const m = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
@@ -593,9 +604,14 @@ const server = http.createServer(async (req, res) => {
         let segments;
         if (PROVIDER === 'deepseek' || PROVIDER === 'claude') {
           const sysPrompt = buildFullSystemPrompt(retrievalQuery, messages);
+          // 剥离对话历史中的 CDN 图片 URL，防模型学到格式后编造不存在的文件路径
+          const cleanMsgs = messages.slice(-20).map(m => ({
+            role: m.role,
+            content: stripCdnImages(m.content)
+          }));
           const raw = PROVIDER === 'deepseek'
-            ? await deepseekReply(messages.slice(-20), sysPrompt)
-            : await claudeReply(messages.slice(-20), sysPrompt);
+            ? await deepseekReply(cleanMsgs, sysPrompt)
+            : await claudeReply(cleanMsgs, sysPrompt);
           // 净化 → 分段 → 解析 [[图:标签]] 发图标记
           segments = expandImageMarkers(smartSplit(sanitizeModelText(raw)));
         } else {
