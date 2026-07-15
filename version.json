@@ -1,6 +1,6 @@
 {
-  "version": "1.18",
-  "build": 36,
+  "version": "1.19",
+  "build": 37,
   "date": "2026-07-15",
-  "note": "根治第二张图问号：关闭CDN对webp的Brotli压缩(content-length错位污染keep-alive) + 图URL恢复?v=build绕开坏缓存"
+  "note": "可打断对话(发送键不再禁用+随时插话中断当前回复) + 图片加载失败自动重试3次+点击手动重试"
 }

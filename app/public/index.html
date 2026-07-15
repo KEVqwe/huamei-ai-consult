@@ -83,6 +83,12 @@
     pointer-events: auto;
   }
   .bubble.img-only { padding: 4px; background: transparent; box-shadow: none; }
+  /* 图片加载失败（重试耗尽）：显示可点击的占位 */
+  .bubble img.img-failed {
+    min-width: 180px; min-height: 90px; padding: 24px 16px; box-sizing: border-box;
+    border: 1px dashed #e0a8c0; border-radius: 10px; background: #fdf3f7;
+    color: #ad1457; font-size: 13px; text-align: center; line-height: 1.5;
+  }
   .sys-msg { text-align: center; margin-bottom: 14px; }
   .sys-msg span {
     display: inline-block; font-size: 11px; color: #a89aa0;
@@ -216,7 +222,7 @@ function md(text) {
   text = text.replace(/\n{2,}/g, '\n');
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const inline = s => esc(s)
-    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="viewImg(this.src)" onload="chat.scrollTop=chat.scrollHeight" draggable="false" oncontextmenu="return false">')
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" onclick="imgClick(this)" onload="imgOk(this)" onerror="imgErr(this)" draggable="false" oncontextmenu="return false">')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   const lines = text.split('\n');
   let html = '', tbl = [];
@@ -240,6 +246,33 @@ function md(text) {
   return html.replace(/\n$/,'');
 }
 
+// 图片加载成功
+function imgOk(img) {
+  img.classList.remove('img-failed');
+  chat.scrollTop = chat.scrollHeight;
+}
+// 图片加载失败：自动重试3次（带退避+缓存击穿），仍失败则变可点击占位
+function imgErr(img) {
+  if (!img.dataset.base) img.dataset.base = img.src;
+  const n = (+img.dataset.retry || 0) + 1;
+  img.dataset.retry = n;
+  if (n <= 3) {
+    setTimeout(() => { img.src = img.dataset.base + '&_r=' + n + '_' + Date.now(); }, 500 * n);
+  } else {
+    img.classList.add('img-failed');
+    img.alt = '📷 图片没加载出来，点这里重试';
+  }
+}
+// 点击图片：失败态→手动重试；正常态→放大查看
+function imgClick(img) {
+  if (img.classList.contains('img-failed')) {
+    img.classList.remove('img-failed');
+    img.dataset.retry = 0;
+    img.src = img.dataset.base + '&_r=m' + Date.now();
+  } else {
+    viewImg(img.src);
+  }
+}
 function viewImg(src) {
   document.getElementById('viewerImg').src = src;
   document.getElementById('viewer').style.display = 'block';
@@ -303,34 +336,32 @@ function typingDelay(seg) {
 async function showSegments(segments, signal) {
   subStatus.textContent = '正在输入…';
   let imageHintShown = imageHintUsed;  // 继承全局状态
+  const aborted = () => signal && signal.aborted;
   for (let i = 0; i < segments.length; i++) {
-    if (signal && signal.aborted) return;  // 用户打断
+    if (aborted()) return;
     const seg = segments[i];
     const isImg = /^!\[.*\]\(.*\)$/.test(seg.trim());
-    const isTable = /^\s*\|.*\|/m.test(seg);
 
     // 全对话第一张图片前：模拟"找图"停顿 + 随机话术（之后不再说）
     if (isImg && !imageHintShown && i > 0) {
       imageHintShown = true;
       imageHintUsed = true;
-      const { b: hintB } = addMsg('bot', '', true);
+      const { row: hRow, b: hintB } = addMsg('bot', '', true);
       await sleep(3000 + Math.random() * 3000);
-      if (signal && signal.aborted) return;
+      if (aborted()) { hRow.remove(); return; }   // 打断：移除"输入中"气泡
       hintB.innerHTML = IMAGE_HINTS[Math.floor(Math.random() * IMAGE_HINTS.length)];
       chat.scrollTop = chat.scrollHeight;
       await sleep(1000 + Math.random() * 800);
+      if (aborted()) return;
     }
 
-    if (signal && signal.aborted) return;
-
-    const { b } = addMsg('bot', '', true);
+    const { row, b } = addMsg('bot', '', true);
     await sleep(typingDelay(seg));
-    if (signal && signal.aborted) return;
+    if (aborted()) { row.remove(); return; }   // 打断：移除还在"输入中"的气泡
 
     b.innerHTML = md(seg);
     if (isImg) b.classList.add('img-only');
     chat.scrollTop = chat.scrollHeight;
-    if (signal && signal.aborted) return;
     await sleep(500 + Math.random() * 700);
   }
   subStatus.textContent = '在线';
@@ -340,22 +371,22 @@ async function send(text) {
   text = (text || input.value).trim();
   if (!text) return;
   input.value = '';
-  sendBtn.disabled = true;
 
-  // 打断当前正在进行的回复
-  if (currentAbort) { currentAbort.abort(); }
+  // 打断当前正在进行的回复（含未完成的网络请求与打字动画）
+  if (currentAbort) currentAbort.abort();
   const abort = new AbortController();
   currentAbort = abort;
 
   addMsg('user', text);
   history.push({ role: 'user', content: text });
 
-  // 先发起 API 请求，但不立刻显示"正在输入"
+  // 先发起 API 请求（带 signal，打断时连请求一起取消）
   const apiPromise = (async () => {
     let res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-access-code': localStorage.getItem('hm_code') || '' },
       body: JSON.stringify({ messages: history }),
+      signal: abort.signal,
     });
     if (res.status === 401) {
       const code = prompt('请输入访问口令');
@@ -365,6 +396,7 @@ async function send(text) {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-access-code': code },
           body: JSON.stringify({ messages: history }),
+          signal: abort.signal,
         });
       }
     }
@@ -376,19 +408,20 @@ async function send(text) {
   })();
 
   // 真人思考延迟：根据问题复杂度随机
-  const td = thinkDelay(text);
-  await sleep(td);
+  await sleep(thinkDelay(text));
+  if (abort.signal.aborted) return;   // 思考期间被打断
 
   // 现在才展示打字状态
   const { row, b } = addMsg('bot', '', true);
   try {
     const data = await apiPromise;
+    if (abort.signal.aborted) { row.remove(); return; }
     row.remove();
     const segs = data.segments && data.segments.length ? data.segments : [data.reply];
     await showSegments(segs, abort.signal);
-    history.push({ role: 'assistant', content: data.reply });
+    if (!abort.signal.aborted) history.push({ role: 'assistant', content: data.reply });
   } catch (e) {
-    if (e.name === 'AbortError') { /* 用户打断，静默处理 */ }
+    if (e.name === 'AbortError' || abort.signal.aborted) { row.remove(); }
     else {
       b.innerHTML = e.message === 'rate_limited'
         ? '您发得有点快啦，稍等几秒再发哈～'
@@ -396,8 +429,7 @@ async function send(text) {
       console.error(e);
     }
   }
-  if (currentAbort === abort) currentAbort = null;
-  sendBtn.disabled = false;
+  if (currentAbort === abort) { currentAbort = null; subStatus.textContent = '在线'; }
   chat.scrollTop = chat.scrollHeight;
   input.focus();
 }
