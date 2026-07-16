@@ -55,7 +55,8 @@
       "Bash(CDN_BASE_URL=https://cdn.jsdelivr.net/gh/KEVqwe/huamei-ai-consult@main node -e ' *)",
       "Bash(sed -n '/const IMAGE_LIST/,/^}/p' app/server.js)",
       "Bash(sed -n '/async function deepseekReply/,/^}/p' app/server.js)",
-      "Bash(bash \"/c/Users/SHENGW~1.OUY/AppData/Local/Temp/claude/C--Users-shengwen-ouyang-Desktop-AI----Demo/1f5b1027-ac63-4706-9b4d-35ab562e1134/scratchpad/test-fc.sh\")"
+      "Bash(bash \"/c/Users/SHENGW~1.OUY/AppData/Local/Temp/claude/C--Users-shengwen-ouyang-Desktop-AI----Demo/1f5b1027-ac63-4706-9b4d-35ab562e1134/scratchpad/test-fc.sh\")",
+      "WebFetch(domain:baike.baidu.com)"
     ]
   }
 }
