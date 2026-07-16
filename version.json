@@ -1,6 +1,6 @@
 {
-  "version": "1.21",
-  "build": 39,
+  "version": "1.22",
+  "build": 40,
   "date": "2026-07-15",
-  "note": "发图稳定性重构：canonical历史(根治【已发送】) + FunctionCalling enum硬约束 + 唯一标签+启动自检 + 移除模糊匹配"
+  "note": "assets目录与标签规范化：文件名=标签名、医生统一全名+医生、移除光电中心、毛发科与韩国专家分列"
 }

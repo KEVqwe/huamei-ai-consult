@@ -10,10 +10,11 @@ const RATIO_THRESHOLD = 4;  // 高:宽 超过4:1 才算超长图
 const MAX_AREA = 16000000;  // iOS安全面积上限(<16.7MP)
 
 const src = fs.readFileSync(path.join(ROOT, 'app', 'server.js'), 'utf8');
-const webpFiles = [...src.matchAll(/file:\s*["']([^"']+\.webp)["']/g)].map(m => m[1]).filter(f => f.startsWith('医生介绍'));
+const CATALOG = eval(src.match(/const IMAGE_CATALOG = (\[[\s\S]*?\n\]);/)[1]);
 
-function findOriginal(relWebp) {
-  const base = relWebp.replace(/\.webp$/i, '');
+// 用 catalog 的 src 字段回溯素材原图（assets 目录已规范化，不能再按 file 反推）
+function findOriginal(entry) {
+  const base = String(entry.src || entry.file).replace(/\.webp$/i, '');
   for (const ext of ['.jpg', '.jpeg', '.png', '.JPG', '.PNG']) {
     const p = path.join(ROOT, '素材', base + ext);
     if (fs.existsSync(p)) return p;
@@ -22,10 +23,11 @@ function findOriginal(relWebp) {
 }
 
 (async () => {
-  let done = 0, skip = 0;
-  for (const rel of webpFiles) {
-    const orig = findOriginal(rel);
-    if (!orig) { console.log('  ✗ 无原图:', rel); continue; }
+  let done = 0, skip = 0, noSrc = 0;
+  for (const entry of CATALOG.filter(c => c.tags[0] === '医生')) {
+    const rel = entry.file;
+    const orig = findOriginal(entry);
+    if (!orig) { console.log('  ✗ 无原图:', rel); noSrc++; continue; }
     const meta = await sharp(orig).metadata();
     const ratio = meta.height / meta.width;
     if (ratio <= RATIO_THRESHOLD) { skip++; continue; }  // 非超长图，跳过
@@ -39,8 +41,8 @@ function findOriginal(relWebp) {
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     await sharp(orig).resize(w, h, { fit: 'fill' }).webp({ quality: QUALITY }).toFile(dst);
     const kb = Math.round(fs.statSync(dst).size / 1024);
-    console.log(`  ✓ ${w}x${h} ${kb}KB  ${rel.split('/').pop()}`);
+    console.log(`  ✓ ${w}x${h} ${kb}KB  ${rel}`);
     done++;
   }
-  console.log(`\n完成：重做 ${done} 张，跳过 ${skip} 张正常图`);
+  console.log(`\n完成：重做 ${done} 张，跳过 ${skip} 张正常图${noSrc ? '，缺原图 ' + noSrc + ' 张' : ''}`);
 })();
