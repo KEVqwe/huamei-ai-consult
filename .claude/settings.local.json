@@ -49,7 +49,13 @@
       "WebFetch(domain:www.shhuamei.cn)",
       "Bash(cd \"/c/Users/SHENGW~1.OUY/AppData/Local/Temp/claude/C--Users-shengwen-ouyang-Desktop-AI----Demo/1f5b1027-ac63-4706-9b4d-35ab562e1134/scratchpad\" && curl -s -L --max-time 30 -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\)\" http://www.shhuamei.cn/ -o home.html && ls -la home.html && head -c 600 home.html)",
       "PowerShell(node \"$env:LOCALAPPDATA\\\\Temp\\\\claude\\\\C--Users-shengwen-ouyang-Desktop-AI----Demo\\\\1f5b1027-ac63-4706-9b4d-35ab562e1134\\\\scratchpad\\\\test-sanitize.js\")",
-      "Bash(cd \"/c/Users/shengwen.ouyang/Desktop/AI医美咨询Demo\" && node -e \"require\\('./app/server.js'\\)\" >/tmp/s.log 2>&1 & sleep 1; kill %1 2>/dev/null; grep -iE \"error|throw\" /tmp/s.log | head -3; echo \"=== 语法OK ===\"; node -e \" *)"
+      "Bash(cd \"/c/Users/shengwen.ouyang/Desktop/AI医美咨询Demo\" && node -e \"require\\('./app/server.js'\\)\" >/tmp/s.log 2>&1 & sleep 1; kill %1 2>/dev/null; grep -iE \"error|throw\" /tmp/s.log | head -3; echo \"=== 语法OK ===\"; node -e \" *)",
+      "PowerShell(Stop-Process *)",
+      "Bash(sed -n '/function assetUrl/,/^}/p' app/server.js)",
+      "Bash(CDN_BASE_URL=https://cdn.jsdelivr.net/gh/KEVqwe/huamei-ai-consult@main node -e ' *)",
+      "Bash(sed -n '/const IMAGE_LIST/,/^}/p' app/server.js)",
+      "Bash(sed -n '/async function deepseekReply/,/^}/p' app/server.js)",
+      "Bash(bash \"/c/Users/SHENGW~1.OUY/AppData/Local/Temp/claude/C--Users-shengwen-ouyang-Desktop-AI----Demo/1f5b1027-ac63-4706-9b4d-35ab562e1134/scratchpad/test-fc.sh\")"
     ]
   }
 }

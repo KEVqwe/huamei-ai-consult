@@ -232,17 +232,86 @@ const IMAGE_CATALOG = [
   { file: "明星产品/瑞可丽居家产品/瑞可丽透明质酸敷料/敷贴面膜.webp", tags: ['产品', '敷料', '瑞可丽', '修复', '械字号'], desc: "瑞可丽透明质酸敷料（械字号）" },
   { file: "明星产品/瑞可丽居家产品/瑞可丽面膜/面膜.webp", tags: ['产品', '面膜', '瑞可丽', '居家', '胶原'], desc: "瑞可丽胶原面膜" },
   { file: "明星产品/瑞可丽居家产品/组合.webp", tags: ["产品", "居家", "面膜", "修复乳", "护肤品"], desc: "瑞可丽居家产品系列" },
-  { file: "荟员升级权益/1.webp", tags: ['会员', '荟员', 'vip', '雏菊粉卡', 'V1'], desc: "荟员权益 V1雏菊粉卡" },
-  { file: "荟员升级权益/2.webp", tags: ['会员', '荟员', '银卡', '茉莉银卡', 'V2'], desc: "荟员权益 V2茉莉银卡" },
-  { file: "荟员升级权益/3.webp", tags: ["会员", "金卡", "荟员", "玫瑰金卡", "V3"], desc: "荟员权益 V3玫瑰金卡" },
-  { file: "荟员升级权益/4.webp", tags: ["会员", "荟员", "钻卡", "山茶钻卡", "V4"], desc: "荟员权益 V4山茶钻卡" },
-  { file: "荟员升级权益/5.webp", tags: ["会员", "荟员", "黑卡", "铃兰黑卡", "V5"], desc: "荟员权益 V5铃兰黑卡" },
+  // 会员卡：tags[1] 是给LLM的唯一标签，5张必须各不相同（曾因都叫"荟员"导致只能发出V1）
+  { file: "荟员升级权益/1.webp", tags: ['会员', '荟员V1粉卡', 'vip', '雏菊粉卡', 'V1'], desc: "荟员权益 V1雏菊粉卡" },
+  { file: "荟员升级权益/2.webp", tags: ['会员', '荟员V2银卡', '银卡', '茉莉银卡', 'V2'], desc: "荟员权益 V2茉莉银卡" },
+  { file: "荟员升级权益/3.webp", tags: ["会员", "荟员V3金卡", "金卡", "玫瑰金卡", "V3"], desc: "荟员权益 V3玫瑰金卡" },
+  { file: "荟员升级权益/4.webp", tags: ["会员", "荟员V4钻卡", "钻卡", "山茶钻卡", "V4"], desc: "荟员权益 V4山茶钻卡" },
+  { file: "荟员升级权益/5.webp", tags: ["会员", "荟员V5黑卡", "黑卡", "铃兰黑卡", "V5"], desc: "荟员权益 V5铃兰黑卡" },
 ];
 
 // 动态构建完整系统提示词 = 人设 + RAG检索知识库 + 可用图片清单
 // 展示给 LLM 的标签用 tags[1]（具体标签），跳过 tags[0]（内部分类前缀）
-const IMAGE_LIST = '\n\n# 可用图片清单\n' +
-  IMAGE_CATALOG.map(c => `- [[图:${c.tags[1]}]] ${c.desc}`).join('\n');
+// ---------- 图片标签索引 + 启动自检（发图稳定性的地基） ----------
+// tags[1] 是每张图对外的唯一键（KEY），既用于 function calling 的 enum，也用于标签兜底解析。
+// 必须全局唯一：曾因5张会员卡的 tags[1] 都叫"荟员"，导致 find() 永远命中V1，另外4张永远发不出。
+const IMAGE_BY_KEY = new Map();
+(function validateCatalog() {
+  const dups = [], missing = [];
+  for (const c of IMAGE_CATALOG) {
+    const key = c.tags && c.tags[1];
+    if (!key) { dups.push(`${c.desc} 缺少 tags[1] 作为唯一键`); continue; }
+    if (IMAGE_BY_KEY.has(key)) dups.push(`标签重复 "${key}"：${IMAGE_BY_KEY.get(key).desc} 与 ${c.desc}`);
+    else IMAGE_BY_KEY.set(key, c);
+    if (!resolveAsset(c.file)) missing.push(c.file);
+  }
+  if (dups.length || missing.length) {
+    console.error('\n[图片目录自检失败] 发图会出错，已阻止启动：');
+    dups.forEach(d => console.error('  ✗ ' + d));
+    missing.forEach(m => console.error('  ✗ 文件缺失: ' + m));
+    throw new Error('IMAGE_CATALOG 校验失败：' + dups.length + ' 个标签冲突, ' + missing.length + ' 个文件缺失');
+  }
+})();
+
+// 精确查表（不做模糊匹配——模糊匹配是"张冠李戴发错图"的根源）
+function findImageByKey(key) {
+  return IMAGE_BY_KEY.get(String(key || '').trim()) || null;
+}
+
+// 发图机制：function calling（enum硬约束，模型物理上无法编造标签）。设 USE_FUNCTION_CALLING=0 可降级为标签解析
+const USE_FUNCTION_CALLING = (process.env.USE_FUNCTION_CALLING ?? '1') !== '0';
+const MAX_IMAGES_PER_TURN = Number(process.env.MAX_IMAGES_PER_TURN ?? 1);
+
+const IMAGE_TOOL = {
+  type: 'function',
+  function: {
+    name: 'send_image',
+    description: '给客户发送一张图片（医生介绍卡/产品图/会员卡）。'
+      + '仅在这两种情况调用：①你在本轮回复里推荐了某位具体医生、某个具体产品或某档会员卡；②客户主动要求看图/看医生介绍/看产品/看会员权益。'
+      + '追问需求、寒暄、澄清、报价时不要调用。一轮最多发1张。找不到贴切的图就不要调用。',
+    parameters: {
+      type: 'object',
+      properties: {
+        tag: {
+          type: 'string',
+          enum: [...IMAGE_BY_KEY.keys()],
+          description: '图片标签，必须从枚举中选择',
+        },
+      },
+      required: ['tag'],
+      additionalProperties: false,
+    },
+  },
+};
+
+// 送给模型的历史必须是干净的纯文本对话：
+// 只保留 role/content，剥离 _images 等自有元数据，杜绝把渲染后的图片URL喂回模型（那正是模型退化成"【已发送】"的根因）
+function toApiMessages(messages) {
+  return (messages || [])
+    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .map(m => ({ role: m.role, content: m.content }));
+}
+
+// 发图机制说明按实际模式动态注入，避免"工具"和"标签"两套说法打架让模型无所适从
+const IMAGE_LIST = USE_FUNCTION_CALLING
+  ? '\n\n# 发图机制（怎么发）\n'
+    + '调用 send_image 工具，参数 tag 从下面清单里精确选一个。不要在正文里写任何图片标记或"已发送"字样。\n\n'
+    + '# 可用图片清单（tag 取值）\n'
+    + IMAGE_CATALOG.map(c => `- ${c.tags[1]} → ${c.desc}`).join('\n')
+  : '\n\n# 发图机制（怎么发）\n'
+    + '在消息末尾插入 [[图:标签]]（两层方括号，前面不加反斜杠），标签从下面清单里精确选一个。\n\n'
+    + '# 可用图片清单\n'
+    + IMAGE_CATALOG.map(c => `- [[图:${c.tags[1]}]] ${c.desc}`).join('\n');
 
 // ---------- 会话客户画像（对话记忆层） ----------
 // 前端每次请求携带完整历史，但送给模型的只有最近20条——早期提到的预算/顾虑/身体情况会滑出窗口。
@@ -267,6 +336,10 @@ function buildProfile(messages) {
 
   const phone = all.match(/1[3-9]\d{9}/);
   if (phone) lines.push(`- 已留联系方式：${phone[0]}（已留资，不要再重复索要电话）`);
+
+  // 已发过的图（来自 _images 元数据，不进模型消息体，只在此处告知，避免重复发同一张）
+  const sent = [...new Set((messages || []).flatMap(m => Array.isArray(m._images) ? m._images : []))];
+  if (sent.length) lines.push(`- 已发过的图：${sent.join('、')}（客户已看过，除非客户再次要求，不要重复发同一张）`);
 
   const WINDOW = 20;
   if (messages.length > WINDOW) {
@@ -296,7 +369,11 @@ function sanitizeModelText(raw) {
   return (raw || '')
     .replace(/\\r\\n|\\n|\\r/g, '\n')          // 字面 \n / \r\n → 真换行
     .replace(/\\([\[\]()*_~#>|`-])/g, '$1')    // 转义符还原：\[ → [ 、\* → * 等
-    .replace(/\\/g, '');                        // 兜底：剩余孤立反斜杠全部剔除
+    .replace(/\\/g, '')                         // 兜底：剩余孤立反斜杠全部剔除
+    // 过滤模型编造的"发图占位符"（历史被污染时的退化产物，绝不能发给客户）
+    // 覆盖：【已发送】[已发图]（图片已发送）已发出 等变体
+    .replace(/[【\[（(]\s*(?:图片)?已(?:发送|发出|发图|上传|发)\s*(?:图片?)?\s*[】\]）)]/g, '')
+    .replace(/^\s*(?:图片)?已(?:发送|发出|发图|上传)\s*(?:图片?)?\s*[。.!！~～]*\s*$/gm, '');
 }
 
 // 智能拆分：优先 |||，否则按换行拆（表格行保持在一起）
@@ -331,26 +408,20 @@ function smartSplit(raw) {
 }
 
 // 解析大模型回复中的 [[图:标签]] 标记，替换为独立的图片消息（一轮最多2张）
-function expandImageMarkers(segments) {
+// 兜底：解析模型出于习惯写出的 [[图:标签]] 标记（FC 路径下模型一般不会写，这是安全网）
+// 只做精确查表 —— 已移除模糊匹配：它会把"瑞可丽"(16张共用)、"皮肤"(11张共用)这类词随便命中一张，是发错图的根源
+function expandImageMarkers(segments, imageKeys = []) {
   const out = [];
-  let count = 0;
-  // 宽松匹配：允许 [[图:标签]] / [图:标签] / [[图：标签]] 等变体
   const RE = /\[{1,2}\s*图\s*[:：]\s*([^\]]+?)\s*\]{1,2}/g;
   for (let seg of segments) {
     const labels = [];
     seg = seg.replace(RE, (_, label) => { labels.push(label.trim()); return ''; }).trim();
     if (seg) out.push(seg);
     for (const label of labels) {
-      if (count >= 2) break;
-      // 精确匹配标签 → 模糊匹配（标签含关键词 / 描述含关键词）
-      let e = IMAGE_CATALOG.find(c => c.tags.includes(label));
-      if (!e) {
-        e = IMAGE_CATALOG.find(c =>
-          c.tags.some(t => label.includes(t) || t.includes(label)) ||
-          c.desc.includes(label)
-        );
-      }
-      if (e) { out.push(imageSegment(e)); count++; }
+      if (imageKeys.length >= MAX_IMAGES_PER_TURN) break;
+      const e = findImageByKey(label);
+      if (e && !imageKeys.includes(label)) { imageKeys.push(label); out.push(imageSegment(e)); }
+      // 查不到就静默丢弃标记：宁可不发图，也不发错图
     }
   }
   return out;
@@ -521,7 +592,7 @@ function demoReply(userText) {
 }
 
 // ---------- DeepSeek API 模式（OpenAI 兼容格式） ----------
-async function deepseekReply(messages, systemPrompt) {
+async function callDeepSeek(msgs, extra = {}) {
   const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'authorization': `Bearer ${DEEPSEEK_API_KEY}` },
@@ -531,12 +602,50 @@ async function deepseekReply(messages, systemPrompt) {
       temperature: GEN_TEMPERATURE,
       frequency_penalty: GEN_FREQ_PENALTY,
       presence_penalty: GEN_PRES_PENALTY,
-      messages: [{ role: 'system', content: systemPrompt }, ...messages.map(m => ({ role: m.role, content: m.content }))],
+      messages: msgs,
+      ...extra,
     }),
   });
   if (!res.ok) throw new Error(`DeepSeek API ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  return res.json();
+}
+
+// 返回 { text, imageKeys }
+// FC 两阶段：第1轮允许调用 send_image（enum硬约束）；第2轮 tool_choice:none 强制产出文字，保证终止不死循环
+async function deepseekReply(messages, systemPrompt) {
+  const base = [{ role: 'system', content: systemPrompt }, ...toApiMessages(messages)];
+  const imageKeys = [];
+
+  if (!USE_FUNCTION_CALLING) {   // 降级：纯文本+标签解析
+    const d = await callDeepSeek(base);
+    return { text: d.choices?.[0]?.message?.content || '', imageKeys };
+  }
+
+  const texts = [];
+  let data = await callDeepSeek(base, { tools: [IMAGE_TOOL], tool_choice: 'auto' });
+  let msg = data.choices?.[0]?.message || {};
+  if (msg.content) texts.push(msg.content);
+
+  if (Array.isArray(msg.tool_calls) && msg.tool_calls.length) {
+    const convo = [...base, { role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls }];
+    for (const tc of msg.tool_calls) {
+      let key = '', ok = false;
+      try { key = JSON.parse(tc.function?.arguments || '{}').tag; } catch { /* 参数损坏 → 视为失败 */ }
+      // 服务端二次校验：标签必须在目录里、不重复、不超单轮上限（即使模型/API异常也发不出错图）
+      if (findImageByKey(key) && !imageKeys.includes(key) && imageKeys.length < MAX_IMAGES_PER_TURN) {
+        imageKeys.push(key); ok = true;
+      }
+      convo.push({
+        role: 'tool', tool_call_id: tc.id,
+        content: ok ? '图片已成功发送给客户' : '发送失败：标签无效或已达本轮上限，请勿重试，直接继续对话',
+      });
+    }
+    data = await callDeepSeek(convo, { tools: [IMAGE_TOOL], tool_choice: 'none' });
+    const msg2 = data.choices?.[0]?.message || {};
+    if (msg2.content) texts.push(msg2.content);
+  }
+
+  return { text: texts.filter(Boolean).join('|||'), imageKeys };
 }
 
 // ---------- Claude API 模式 ----------
@@ -552,7 +661,8 @@ async function claudeReply(messages, systemPrompt) {
   });
   if (!res.ok) throw new Error(`Claude API ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = await res.json();
-  return data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+  // Claude 走标签解析路径（发图统一由 expandImageMarkers 处理），返回结构与 deepseekReply 对齐
+  return { text: data.content.filter(b => b.type === 'text').map(b => b.text).join(''), imageKeys: [] };
 }
 
 // ---------- HTTP 服务 ----------
@@ -602,27 +712,42 @@ const server = http.createServer(async (req, res) => {
           .filter(m => m.role === 'user').slice(-3)
           .map(m => m.content).join(' ');
         let segments;
+        const imageKeys = [];
         if (PROVIDER === 'deepseek' || PROVIDER === 'claude') {
           const sysPrompt = buildFullSystemPrompt(retrievalQuery, messages);
-          // 剥离对话历史中的 CDN 图片 URL，防模型学到格式后编造不存在的文件路径
-          const cleanMsgs = messages.slice(-20).map(m => ({
-            role: m.role,
-            content: stripCdnImages(m.content)
-          }));
-          const raw = PROVIDER === 'deepseek'
+          // 历史里本就不含图片URL/占位符（见下方 historyAppend）；stripCdnImages 仅为兼容老客户端遗留历史
+          const cleanMsgs = messages.slice(-20).map(m => ({ role: m.role, content: stripCdnImages(m.content) }));
+          const r = PROVIDER === 'deepseek'
             ? await deepseekReply(cleanMsgs, sysPrompt)
             : await claudeReply(cleanMsgs, sysPrompt);
-          // 净化 → 分段 → 解析 [[图:标签]] 发图标记
-          segments = expandImageMarkers(smartSplit(sanitizeModelText(raw)));
+          // 净化 → 分段 → 兜底解析 [[图:标签]]（模型出于习惯写标记时也认，是 FC 的安全网）
+          segments = expandImageMarkers(smartSplit(sanitizeModelText(r.text)), imageKeys);
+          // 追加 function calling 选中的图（已经服务端校验：标签存在+不重复+不超上限）
+          for (const k of r.imageKeys || []) {
+            const e = findImageByKey(k);
+            if (e && !imageKeys.includes(k)) { imageKeys.push(k); segments.push(imageSegment(e)); }
+          }
         } else {
           segments = demoReply(lastUser);
           // 本地模式：按话题关键词自动配图（匹配用户提问+第一条回复）
           for (const img of pickImages(lastUser + ' ' + (segments[0] || ''), 2)) {
+            imageKeys.push(img.tags[1]);
             segments.push(`![${img.desc}](${img.url})`);
           }
         }
+        segments = segments.filter(s => s && s.trim());
+
+        // 【关键】存回历史的只有"模型说的纯文本"+自有元数据 _images：
+        // 绝不含图片URL、也不含 [已发图] 这类占位符——否则模型会照着学，退化成只输出"【已发送】"不发图
+        const textOnly = segments.filter(s => !/^!\[.*\]\(.*\)$/.test(s.trim()));
+        const historyAppend = [{
+          role: 'assistant',
+          content: textOnly.join('|||'),
+          _images: imageKeys,          // 仅服务端用于生成"已发过的图"画像，永不送进模型消息体
+        }].filter(m => m.content);
+
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ segments, reply: segments.join('\n\n'), mode: PROVIDER }));
+        res.end(JSON.stringify({ segments, historyAppend, reply: segments.join('\n\n'), mode: PROVIDER }));
       } catch (e) {
         console.error('[chat error]', e.message);
         res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
